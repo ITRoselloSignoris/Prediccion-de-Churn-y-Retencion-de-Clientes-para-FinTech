@@ -104,17 +104,25 @@ def predict_fraud_customer (customer_data:CustomerData):
             sql = """
             INSERT INTO predictions
             (timestamp, latency_ms, model_version, prediction, confidence,
-             creditscore, age, tenure, balance, numofproducts, hascrcard,
-             isactivemember, estimatedsalary, geography, gender)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                creditscore, age, tenure, balance, hascrcard,
+                isactivemember, estimatedsalary, geography, gender,
+                numofproducts_1, numofproducts_2, numofproducts_3, numofproducts_4)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            # Los valores en 'params' no cambian
+
+            # --- MODIFICACIÓN PARAMS ---
+            np_1 = (customer_data.NumOfProducts == 1)
+            np_2 = (customer_data.NumOfProducts == 2)
+            np_3 = (customer_data.NumOfProducts == 3)
+            np_4 = (customer_data.NumOfProducts == 4)
+
             params = (
                 datetime.now(), latency_ms, model_version, prediction, confidence,
                 customer_data.CreditScore, customer_data.Age, customer_data.Tenure,
-                customer_data.Balance, customer_data.NumOfProducts, customer_data.HasCrCard,
+                customer_data.Balance, customer_data.HasCrCard,
                 customer_data.IsActiveMember, customer_data.EstimatedSalary,
-                customer_data.Geography, customer_data.Gender
+                customer_data.Geography, customer_data.Gender,
+                np_1, np_2, np_3, np_4
             )
             cur.execute(sql, params)
 
