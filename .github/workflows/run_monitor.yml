@@ -1,0 +1,40 @@
+name: Generate and Deploy Drift Report
+
+on:
+  push:
+    branches:
+      - main # Runs every time you push to the main branch
+  schedule:
+    - cron: '0 8 * * *' # Runs every day at 8:00 UTC (around 5 AM Argentina time)
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest 
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4 
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.7' 
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Install only what the drift_monitor script needs
+          pip install pandas psycopg2-binary evidently
+
+      - name: Run Drift Monitor Script
+        env:
+          SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
+        run: |
+          # Run the script from the root directory
+          python deployment/drift_monitor.py
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public 
