@@ -18,19 +18,26 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11' # Matches the log
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          # --- CHANGE HERE: Added --force-reinstall, --no-cache-dir, and -vvv ---
+          # Keep verbose install for now
           pip install --force-reinstall --no-cache-dir -vvv pandas psycopg2-binary evidently
-          # ----------------------------------------------------------------------
 
-      # --- ADD THIS NEW STEP ---
       - name: List Installed Packages
         run: pip list
-      # -------------------------
+
+      # --- ADD STEP 1: Show Evidently Install Location ---
+      - name: Show Evidently Location
+        run: pip show evidently
+      # --------------------------------------------------
+
+      # --- ADD STEP 2: Show Python sys.path ---
+      - name: Show Python Path
+        run: python -c "import sys; print(sys.path)"
+      # ----------------------------------------
 
       - name: Verify Evidently Installation # Keep this step
         run: |
@@ -40,6 +47,8 @@ jobs:
           echo "Evidently import verification complete."
 
       - name: Run Drift Monitor Script
+        # ... (rest of the workflow) ...
+      # ... (Deploy step) ...
         env:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
         run: |
