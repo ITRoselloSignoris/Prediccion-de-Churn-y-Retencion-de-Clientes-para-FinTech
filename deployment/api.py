@@ -33,7 +33,7 @@ except Exception as e:
 
 PARENT_FOLDER = os.path.dirname(__file__)
 MODEL_PATH = os.path.join(PARENT_FOLDER, "../src/model/best_model.pkl")
-COLUMNS_PATH = os.path.join(PARENT_FOLDER, "../src/ohe_categories_without_exited.pkl")
+COLUMNS_PATH = os.path.join(PARENT_FOLDER, "../src/ohe_categories_without_exited.pickle")
 SCALER_PATH = os.path.join(PARENT_FOLDER, "../src/model/scaler.pkl")
 
 with open(MODEL_PATH, "rb") as handle:
