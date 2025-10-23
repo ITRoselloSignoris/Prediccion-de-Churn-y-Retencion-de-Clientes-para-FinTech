@@ -83,10 +83,11 @@ def predict_fraud_customer (customer_data:CustomerData):
     single_instance_ohe = pd.get_dummies(single_instance).reindex(columns = ohe_tr).fillna(0)
    
     #Hacer escalado
-    single_instance_ohe[numerical_cols] = scaler.transform(single_instance_ohe[numerical_cols])
+    X_scaled_array = scaler.transform(single_instance_ohe)
 
+    X_final_pred = pd.DataFrame(X_scaled_array, columns=ohe_tr, index=single_instance_ohe.index)
     #Hacer predicción
-    prediction_proba = model.predict_proba(single_instance_ohe)
+    prediction_proba = model.predict_proba(X_final_pred)
 
     confidence = float(prediction_proba[0][1])
 
