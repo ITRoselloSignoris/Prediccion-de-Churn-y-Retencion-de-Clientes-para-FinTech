@@ -1,0 +1,15 @@
+artifact_uri: /home/alumni/Programación/Proyectos/Data_Science/SimulacionLaboral/src/notebooks/../../deployment/mlruns/397109585207771848/a6f9048ddd064645aeea2616d9e01149/artifacts
+end_time: 1761181159009
+entry_point_name: ''
+experiment_id: '397109585207771848'
+lifecycle_stage: active
+run_id: a6f9048ddd064645aeea2616d9e01149
+run_name: BestModel_LogisticRegression
+run_uuid: a6f9048ddd064645aeea2616d9e01149
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761181153927
+status: 3
+tags: []
+user_id: alumni
