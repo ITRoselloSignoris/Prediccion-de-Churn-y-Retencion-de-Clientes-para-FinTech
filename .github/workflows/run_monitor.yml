@@ -26,6 +26,13 @@ jobs:
           # Install only what the drift_monitor script needs
           pip install pandas psycopg2-binary evidently
 
+      - name: Verify Evidently Installation
+        run: |
+          echo "Attempting to import Evidently modules..."
+          python -c "from evidently.report import Report; print('Import Report OK')"
+          python -c "from evidently.metric_preset import DataDriftPreset; print('Import DataDriftPreset OK')"
+          echo "Evidently import verification complete."
+
       - name: Run Drift Monitor Script
         env:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
