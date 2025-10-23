@@ -105,12 +105,24 @@ def predict_fraud_customer (customer_data:CustomerData):
             INSERT INTO predictions
             (timestamp, latency_ms, model_version, prediction, confidence,
                 creditscore, age, tenure, balance, hascrcard,
-                isactivemember, estimatedsalary, geography, gender,
-                numofproducts_1, numofproducts_2, numofproducts_3, numofproducts_4)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                isactivemember, estimatedsalary,
+                geography_france, geography_germany, geography_spain, -- Columnas OHE Geo
+                gender_female, gender_male,                             -- Columnas OHE Gender
+                numofproducts_1, numofproducts_2, numofproducts_3, numofproducts_4) -- Columnas OHE NumProd
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) -- Más placeholders
             """
 
             # --- MODIFICACIÓN PARAMS ---
+            # Determinar valores booleanos para Geography
+            geo_france = (customer_data.Geography == "France")
+            geo_germany = (customer_data.Geography == "Germany")
+            geo_spain = (customer_data.Geography == "Spain")
+
+            # Determinar valores booleanos para Gender
+            gender_female = (customer_data.Gender == "Female")
+            gender_male = (customer_data.Gender == "Male")
+
+            # Determinar valores booleanos para NumOfProducts
             np_1 = (customer_data.NumOfProducts == 1)
             np_2 = (customer_data.NumOfProducts == 2)
             np_3 = (customer_data.NumOfProducts == 3)
@@ -121,7 +133,11 @@ def predict_fraud_customer (customer_data:CustomerData):
                 customer_data.CreditScore, customer_data.Age, customer_data.Tenure,
                 customer_data.Balance, customer_data.HasCrCard,
                 customer_data.IsActiveMember, customer_data.EstimatedSalary,
-                customer_data.Geography, customer_data.Gender,
+                # Pasar los valores booleanos para Geography
+                geo_france, geo_germany, geo_spain,
+                # Pasar los valores booleanos para Gender
+                gender_female, gender_male,
+                # Pasar los valores booleanos para NumOfProducts
                 np_1, np_2, np_3, np_4
             )
             cur.execute(sql, params)
