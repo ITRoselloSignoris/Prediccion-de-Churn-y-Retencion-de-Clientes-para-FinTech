@@ -1,0 +1,21 @@
+name: Sync to Hugging Face Hub
+
+on:
+  push:
+    branches: [main] # Se activa cada vez que hacemos push a la rama main
+
+  # Para ejecutarlo manualmente desde la pestaña Actions
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true # Importante si usamos Git LFS para archivos grandes
+      - name: Push to Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }} # Usamos el token secreto
+        run: git push https://HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/HF_USERNAME/SPACE_NAME main --force
