@@ -49,7 +49,7 @@ DB_CONNECTION_STRING = os.environ.get("SUPABASE_CONNECTION_STRING")
 
 app = FastAPI()
 
-numerical_cols = ['CreditScore', 'Age', 'Tenure', 'Balance', 'NumOfProducts', 'EstimatedSalary']
+numerical_cols = ['CreditScore', 'Age', 'Tenure', 'Balance', 'EstimatedSalary']
 
 class CustomerData(BaseModel):
     CreditScore : int
