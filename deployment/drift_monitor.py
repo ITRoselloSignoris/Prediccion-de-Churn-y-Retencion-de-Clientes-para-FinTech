@@ -1,8 +1,8 @@
 import os
 import pandas as pd
 import psycopg2 # Para conectar a Supabase
-from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset, TargetDriftPreset # Presets comunes para drift
+from evidently import Report
+from evidently import DataDriftPreset, TargetDriftPreset # Presets comunes para drift
 
 # --- Configuración ---
 DB_CONNECTION_STRING = os.environ.get("SUPABASE_CONNECTION_STRING")
