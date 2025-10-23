@@ -104,11 +104,11 @@ def predict_fraud_customer (customer_data:CustomerData):
             sql = """
             INSERT INTO predictions
             (timestamp, latency_ms, model_version, prediction, confidence,
-                "CreditScore", "Age", "Tenure", "Balance", "NumOfProducts", "HasCrCard",
-                "IsActiveMember", "EstimatedSalary", "Geography", "Gender")
+             creditscore, age, tenure, balance, numofproducts, hascrcard,
+             isactivemember, estimatedsalary, geography, gender)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            # Pasamos los valores originales del input
+            # Los valores en 'params' no cambian
             params = (
                 datetime.now(), latency_ms, model_version, prediction, confidence,
                 customer_data.CreditScore, customer_data.Age, customer_data.Tenure,
