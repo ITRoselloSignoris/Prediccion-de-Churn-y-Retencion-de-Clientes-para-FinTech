@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import pandas as pd
 import psycopg2
+import plotly.express as px
 
 st.set_page_config(
     page_title="Dashboard de Monitoreo de Churn",
@@ -187,7 +188,6 @@ with tab1:
     else:
         st.info("Aún no hay datos para mostrar KPIs o tendencias.")
 
-
 with tab2:
     st.header("Distribución de Features Recientes")
     if not df_kpis.empty:
@@ -195,17 +195,22 @@ with tab2:
         with col_feat1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad Reciente")
-                st.histogram(df_kpis['age'].dropna())
+                fig_age = px.histogram(df_kpis['age'].dropna(), nbins=30)
+                st.plotly_chart(fig_age, use_container_width=True)
+
             if 'geography' in df_kpis.columns:
                  st.subheader("País Reciente")
                  st.bar_chart(df_kpis['geography'].value_counts())
             if 'hascrcard' in df_kpis.columns:
                  st.subheader("Tiene Tarjeta Crédito Reciente")
                  st.bar_chart(df_kpis['hascrcard'].value_counts())
+        
         with col_feat2:
              if 'balance' in df_kpis.columns:
                  st.subheader("Saldo Reciente")
-                 st.histogram(df_kpis['balance'].dropna())
+                 fig_balance = px.histogram(df_kpis['balance'].dropna(), nbins=30)
+                 st.plotly_chart(fig_balance, use_container_width=True)
+
              if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos Recientes")
                   st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index())
@@ -214,7 +219,6 @@ with tab2:
                  st.bar_chart(df_kpis['isactivemember'].value_counts())
     else:
         st.info("No hay datos recientes para mostrar distribuciones.")
-
 
 with tab3:
     st.header("Reporte de Data Drift")
