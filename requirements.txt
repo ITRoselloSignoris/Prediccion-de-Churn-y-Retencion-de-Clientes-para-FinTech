@@ -16,3 +16,4 @@ requests
 funpymodeling 
 evidently
 streamlit
+shap
