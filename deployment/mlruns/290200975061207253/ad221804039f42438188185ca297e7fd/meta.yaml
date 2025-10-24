@@ -1,0 +1,15 @@
+artifact_uri: /home/alumni/Programación/Proyectos/Data_Science/SimulacionLaboral/src/notebooks/../../deployment/mlruns/290200975061207253/ad221804039f42438188185ca297e7fd/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '290200975061207253'
+lifecycle_stage: active
+run_id: ad221804039f42438188185ca297e7fd
+run_name: aged-mink-545
+run_uuid: ad221804039f42438188185ca297e7fd
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761321982155
+status: 1
+tags: []
+user_id: alumni

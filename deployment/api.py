@@ -17,7 +17,7 @@ try:
     mlflow.set_tracking_uri("../deployment/mlruns/") 
     runs = mlflow.search_runs(
         experiment_names=["Churn Prediction"],
-        filter_string="tags.mlflow.log-model.history IS NOT NULL", # Filtramos ejecuciones que guardaron un modelo
+        filter_string="tags.mlflow.log-model.history IS NOT NULL",
         order_by=["start_time DESC"],
         max_results=1
     )
@@ -113,16 +113,16 @@ def predict_fraud_customer (customer_data:CustomerData):
             """
 
             # --- MODIFICACIÓN PARAMS ---
-            # Determinar valores booleanos para Geography
+            # Determinamos valores booleanos para Geography
             geo_france = (customer_data.Geography == "France")
             geo_germany = (customer_data.Geography == "Germany")
             geo_spain = (customer_data.Geography == "Spain")
 
-            # Determinar valores booleanos para Gender
+            # Determinamos valores booleanos para Gender
             gender_female = (customer_data.Gender == "Female")
             gender_male = (customer_data.Gender == "Male")
 
-            # Determinar valores booleanos para NumOfProducts
+            # Determinamos valores booleanos para NumOfProducts
             np_1 = (customer_data.NumOfProducts == 1)
             np_2 = (customer_data.NumOfProducts == 2)
             np_3 = (customer_data.NumOfProducts == 3)
@@ -133,11 +133,11 @@ def predict_fraud_customer (customer_data:CustomerData):
                 customer_data.CreditScore, customer_data.Age, customer_data.Tenure,
                 customer_data.Balance, customer_data.HasCrCard,
                 customer_data.IsActiveMember, customer_data.EstimatedSalary,
-                # Pasar los valores booleanos para Geography
+                # Pasamos los valores booleanos para Geography
                 geo_france, geo_germany, geo_spain,
-                # Pasar los valores booleanos para Gender
+                # Pasamos los valores booleanos para Gender
                 gender_female, gender_male,
-                # Pasar los valores booleanos para NumOfProducts
+                # Pasamos los valores booleanos para NumOfProducts
                 np_1, np_2, np_3, np_4
             )
             cur.execute(sql, params)
