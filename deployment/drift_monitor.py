@@ -17,7 +17,7 @@ FEATURE_COLUMNS_TO_MONITOR = [
     'gender_female', 'gender_male',
     'numofproducts_1', 'numofproducts_2', 'numofproducts_3', 'numofproducts_4'
 ]
-TARGET_COLUMN_NAME = 'exited'
+TARGET_COLUMN_NAME = 'Exited'
 PREDICTION_COLUMN_NAME = 'prediction'
 
 def load_recent_data(conn_string, num_rows):
