@@ -13,19 +13,24 @@ OUTPUT_REPORT_PATH = "public/drift_report.html"
 
 NUM_RECENT_PREDICTIONS = 5000
 
+# En drift_monitor.py
 COLUMNS_TO_MONITOR = [
-    'creditscore', 'age', 'tenure', 'balance', 'numofproducts', 'hascrcard',
-    'isactivemember', 'estimatedsalary', 'geography', 'gender',
-    'prediction' 
+    'creditscore', 'age', 'tenure', 'balance', 
+    'hascrcard', 'isactivemember', 'estimatedsalary',
+    'geography_france', 'geography_germany', 'geography_spain', 
+    'gender_female', 'gender_male',                           
+    'numofproducts_1', 'numofproducts_2', 'numofproducts_3', 'numofproducts_4',
+    'prediction'
 ]
 
 def load_recent_data(conn_string, num_rows):
-    """Carga las predicciones más recientes desde la base de datos Supabase."""
-    print(f"Cargando {num_rows} predicciones recientes desde Supabase...")
     query = f"""
     SELECT
-        creditscore, age, tenure, balance, numofproducts, hascrcard,
-        isactivemember, estimatedsalary, geography, gender, prediction
+        creditscore, age, tenure, balance, hascrcard, isactivemember, estimatedsalary,
+        geography_france, geography_germany, geography_spain, -- Columnas OHE Geo
+        gender_female, gender_male,                         -- Columnas OHE Gender
+        numofproducts_1, numofproducts_2, numofproducts_3, numofproducts_4, -- Columnas OHE NumProd
+        prediction
     FROM predictions
     ORDER BY timestamp DESC
     LIMIT {num_rows};
@@ -33,9 +38,6 @@ def load_recent_data(conn_string, num_rows):
     try:
         with psycopg2.connect(conn_string) as conn:
             df = pd.read_sql(query, conn)
-        print(f"Se cargaron {len(df)} filas.")
-        #df['hascrcard'] = df['hascrcard'].astype(str)
-        #df['isactivemember'] = df['isactivemember'].astype(str)
         return df
     except Exception as e:
         print(f"Error al cargar datos desde Supabase: {e}")
