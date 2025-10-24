@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
         if PREDICTION_COLUMN_NAME not in df_recent.columns:
              print(f"Error: Columna de predicción '{PREDICTION_COLUMN_NAME}' no encontrada en datos recientes.")
-        elif TARGET_COLUMN_NAME not in df_hist.columns:
+        elif TARGET_COLUMN_NAME.lower() not in df_hist.columns:
              print(f"Error: Columna target '{TARGET_COLUMN_NAME}' no encontrada en datos históricos.")
         else:
              generate_drift_report(df_recent, df_hist, FEATURE_COLUMNS_TO_MONITOR, TARGET_COLUMN_NAME, PREDICTION_COLUMN_NAME, OUTPUT_REPORT_PATH)
