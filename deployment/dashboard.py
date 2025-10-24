@@ -195,7 +195,7 @@ with tab2:
         with col_feat1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad Reciente")
-                st.hist_chart(df_kpis['age'].dropna())
+                st.histogram(df_kpis['age'].dropna())
             if 'geography' in df_kpis.columns:
                  st.subheader("País Reciente")
                  st.bar_chart(df_kpis['geography'].value_counts())
@@ -205,7 +205,7 @@ with tab2:
         with col_feat2:
              if 'balance' in df_kpis.columns:
                  st.subheader("Saldo Reciente")
-                 st.hist_chart(df_kpis['balance'].dropna())
+                 st.histogram(df_kpis['balance'].dropna())
              if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos Recientes")
                   st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index())
