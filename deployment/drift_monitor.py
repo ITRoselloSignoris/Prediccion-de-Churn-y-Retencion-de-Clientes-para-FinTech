@@ -48,6 +48,7 @@ def load_reference_data(file_path):
         df = pd.read_csv(file_path)
         # df['HasCrCard'] = df['HasCrCard'].astype(str)
         # df['IsActiveMember'] = df['IsActiveMember'].astype(str) 
+        return df
     except FileNotFoundError:
         print(f"Error: No se encontró el archivo de referencia en {file_path}")
         return pd.DataFrame()
