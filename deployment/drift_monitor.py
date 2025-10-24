@@ -73,7 +73,7 @@ def generate_drift_report(df_current, df_reference, feature_columns, target_col,
     if prediction_col not in df_current.columns:
         print(f"Error: Columna de predicción '{prediction_col}' no encontrada en datos actuales.")
         return
-    if target_col not in df_reference.columns:
+    if target_col.lower() not in df_reference.columns:
         print(f"Error: Columna target '{target_col}' no encontrada en datos de referencia.")
         return
 
