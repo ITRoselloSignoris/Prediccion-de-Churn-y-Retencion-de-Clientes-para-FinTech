@@ -6,6 +6,7 @@ import plotly.express as px
 import numpy as np 
 import pickle       
 import shap        
+shap.initjs()
 from streamlit_shap import st_shap
 import matplotlib.pyplot as plt 
 
@@ -347,8 +348,7 @@ with tab5:
     st.subheader("Importancia Global de Features")
     
     try:
-        # Asume que 'shap_summary.png' está en la misma carpeta
-        st.image("deployment/shap_plots/shap_summary.png", width='stretch')
+        st.image("deployment/shap_plots/shap_summary.png", width="stretch")
     except FileNotFoundError:
         st.error("No se encontró el archivo shap_summary.png")
 
@@ -366,7 +366,7 @@ with tab5:
             # Obtiene el índice de la fila seleccionada
             selected_index = st.session_state.df_selector.selection["rows"][0]
             
-            # Obtiene los datos de esa fila (ya listos para el modelo)
+            # Obtiene los datos de esa fila
             if not df_for_model.empty and selected_index < len(df_for_model):
                 customer_data_df = df_for_model.iloc[[selected_index]]
                 customer_data_series = df_for_model.iloc[selected_index]
@@ -384,10 +384,20 @@ with tab5:
                 
                 # Muestra el gráfico waterfall estático
                 st.write("Desglose del impacto (Waterfall):")
+                
+                # --- Añadir estilo para modo oscuro ---
+                plt.style.use('dark_background') # Texto claro
                 fig_waterfall, ax_waterfall = plt.subplots()
+                fig_waterfall.patch.set_alpha(0.0) # Fondo de figura transparente
+                ax_waterfall.patch.set_alpha(0.0) # Fondo de ejes transparente
+                # ---------------------------------------------------
+                
                 # Usamos el objeto Explanation directamente
                 shap.plots.waterfall(shap_values_customer, max_display=15, show=False) 
                 st.pyplot(fig_waterfall)
+                
+                plt.style.use('default') # Resetea el estilo
+                
             else:
                 st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
 
