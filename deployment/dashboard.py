@@ -6,7 +6,7 @@ import plotly.express as px
 import numpy as np 
 import pickle       
 import shap        
-import streamlit_shap as st_shap 
+from streamlit_shap import st_shap
 import matplotlib.pyplot as plt 
 
 st.set_page_config(
