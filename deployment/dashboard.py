@@ -53,6 +53,7 @@ def load_background_data():
     """Carga los datos de fondo (X_train) para SHAP."""
     try:
         df_background = pd.read_csv(BACKGROUND_DATA_PATH)
+        df_background.columns = df_background.columns.str.lower()
         if not all(col in df_background.columns for col in MODEL_FEATURE_COLS):
              st.warning(f"Columnas de {BACKGROUND_DATA_PATH} no coinciden con MODEL_FEATURE_COLS.")
         return df_background[MODEL_FEATURE_COLS]
