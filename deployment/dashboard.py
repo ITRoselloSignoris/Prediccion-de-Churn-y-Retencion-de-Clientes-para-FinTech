@@ -3,6 +3,11 @@ import streamlit as st
 import pandas as pd
 import psycopg2
 import plotly.express as px
+import numpy as np 
+import pickle       
+import shap        
+import streamlit_shap as st_shap 
+import matplotlib.pyplot as plt 
 
 st.set_page_config(
     page_title="Dashboard de Monitoreo de Churn",
@@ -10,9 +15,72 @@ st.set_page_config(
 )
 st.title("📊 Dashboard de Monitoreo del Modelo de Churn")
 
+# --- Constantes ---
 REPORT_URL = "https://itrosellosignoris.github.io/Prediccion-de-Churn-y-Retencion-de-Clientes-para-FinTech/drift_report.html"
-
 DB_CONNECTION_STRING = st.secrets.get("SUPABASE_CONNECTION_STRING")
+
+# --- Constantes para SHAP ---
+MODEL_PATH = "../src/model/best_model.pkl"
+BACKGROUND_DATA_PATH = "data/X_train_final_linear.csv" 
+
+# Lista de features EXACTAS que espera tu modelo (de training.ipynb)
+MODEL_FEATURE_COLS = [
+    'creditscore', 'age', 'tenure', 'balance',
+    'hascrcard', 'isactivemember', 'estimatedsalary',
+    'geography_france', 'geography_germany', 'geography_spain',
+    'gender_female', 'gender_male',
+    'numofproducts_1', 'numofproducts_2', 'numofproducts_3', 'numofproducts_4'
+]
+
+# --- AÑADIDO: Funciones cacheadas para cargar modelo y SHAP ---
+
+@st.cache_resource
+def load_model():
+    """Carga el modelo de churn .pkl entrenado."""
+    try:
+        with open(MODEL_PATH, 'rb') as f:
+            model = pickle.load(f)
+        return model
+    except FileNotFoundError:
+        st.error(f"Error: No se encontró el archivo del modelo en {MODEL_PATH}")
+        return None
+    except Exception as e:
+        st.error(f"Error al cargar el modelo: {e}")
+        return None
+
+@st.cache_resource
+def load_background_data():
+    """Carga los datos de fondo (X_train) para SHAP."""
+    try:
+        df_background = pd.read_csv(BACKGROUND_DATA_PATH)
+        if not all(col in df_background.columns for col in MODEL_FEATURE_COLS):
+             st.warning(f"Columnas de {BACKGROUND_DATA_PATH} no coinciden con MODEL_FEATURE_COLS.")
+        return df_background[MODEL_FEATURE_COLS]
+    except FileNotFoundError:
+        st.error(f"Error: No se encontró el archivo de datos de fondo en {BACKGROUND_DATA_PATH}")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error al cargar datos de fondo: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def get_shap_explainer(_model, _background_data):
+    """Crea el explicador SHAP y calcula valores globales."""
+    if _model is None or _background_data.empty:
+        return None, None, None
+    
+    try:
+        st.info("Creando explicador SHAP y calculando valores globales...")
+        # Como usé Regresión Logística, uso LinearExplainer
+        explainer = shap.LinearExplainer(_model, _background_data)
+        shap_values = explainer(_background_data)
+        st.success("Explicador SHAP y valores globales listos.")
+        return explainer, shap_values, _background_data
+    except Exception as e:
+        st.error(f"Error al crear el explicador SHAP: {e}")
+        return None, None, None
+
+# --- Funciones de Base de Datos ---
 
 @st.cache_resource(ttl=300)
 def get_db_connection():
@@ -52,49 +120,49 @@ def load_data_from_db(_conn):
              if col in df.columns:
                   try:
                       df[col] = df[col].astype(bool)
-                  except Exception: # Fallback si la conversión falla
+                  except Exception:
                       df[col] = df[col].astype(str)
 
-        # Reconstruir NumOfProducts original (aproximado) si se necesita para filtros
-        def get_num_products(row):
-            if row.get('numofproducts_1', False): return 1
-            if row.get('numofproducts_2', False): return 2
-            if row.get('numofproducts_3', False): return 3
-            if row.get('numofproducts_4', False): return 4
-            return 0 # O None
-        df['numofproducts'] = df.apply(get_num_products, axis=1)
+        # --- Reconstrucción vectorizada ---
+        prod_conditions = [
+            df.get('numofproducts_1', False), df.get('numofproducts_2', False),
+            df.get('numofproducts_3', False), df.get('numofproducts_4', False)
+        ]
+        prod_choices = [1, 2, 3, 4]
+        df['numofproducts'] = np.select(prod_conditions, prod_choices, default=0)
 
-        # Reconstruir Geography original
-        def get_geography(row):
-            if row.get('geography_france', False): return "France"
-            if row.get('geography_germany', False): return "Germany"
-            if row.get('geography_spain', False): return "Spain"
-            return "Unknown"
-        df['geography'] = df.apply(get_geography, axis=1)
+        geo_conditions = [
+            df.get('geography_france', False), df.get('geography_germany', False),
+            df.get('geography_spain', False)
+        ]
+        geo_choices = ["France", "Germany", "Spain"]
+        df['geography'] = np.select(geo_conditions, geo_choices, default="Unknown")
 
-        # Reconstruir Gender original
-        def get_gender(row):
-            if row.get('gender_female', False): return "Female"
-            if row.get('gender_male', False): return "Male"
-            return "Unknown"
-        df['gender'] = df.apply(get_gender, axis=1)
-
+        gen_conditions = [
+            df.get('gender_female', False), df.get('gender_male', False)
+        ]
+        gen_choices = ["Female", "Male"]
+        df['gender'] = np.select(gen_conditions, gen_choices, default="Unknown")
 
         return df
     except Exception as e:
         st.error(f"Error al cargar o procesar datos desde la base de datos: {e}")
-        st.cache_resource.clear()
+        # --- DEVUELVE DATAFRAME VACÍO EN CASO DE ERROR ---
         return pd.DataFrame()
 
-
+# --- Carga Principal de Datos y Recursos ---
 conn = get_db_connection()
 df_kpis = load_data_from_db(conn)
 
+# --- Carga de recursos SHAP ---
+model = load_model()
+df_background = load_background_data()
+explainer, shap_values_global, df_background_global = get_shap_explainer(model, df_background)
 
+# --- Lógica de la Sidebar ---
 st.sidebar.header("Filtros de Segmentación 🧭")
 
 min_prob_threshold = 0.5
-filtered_customer_count = 0
 df_filtered = pd.DataFrame()
 
 if not df_kpis.empty and 'confidence' in df_kpis.columns:
@@ -103,42 +171,42 @@ if not df_kpis.empty and 'confidence' in df_kpis.columns:
         min_value=0.0, max_value=1.0, value=0.5, step=0.05
     )
     df_filtered = df_kpis[df_kpis['confidence'] >= min_prob_threshold].copy()
-    filtered_customer_count = len(df_filtered)
 
     unique_geo = sorted(df_kpis['geography'].dropna().unique())
     geo_filter = st.sidebar.multiselect("Filtrar por País:", options=unique_geo, default=unique_geo)
     df_filtered = df_filtered[df_filtered['geography'].isin(geo_filter)]
-    filtered_customer_count = len(df_filtered)
 
     unique_gender = sorted(df_kpis['gender'].dropna().unique())
     gender_filter = st.sidebar.multiselect("Filtrar por Género:", options=unique_gender, default=unique_gender)
     df_filtered = df_filtered[df_filtered['gender'].isin(gender_filter)]
-    filtered_customer_count = len(df_filtered)
 
     is_active_options = ["Todos", "Activos", "Inactivos"]
     is_active_map = {"Activos": True, "Inactivos": False}
     is_active_filter_selection = st.sidebar.selectbox("Filtrar por Miembro Activo:", options=is_active_options, index=0)
     if is_active_filter_selection != "Todos":
         df_filtered = df_filtered[df_filtered['isactivemember'] == is_active_map[is_active_filter_selection]]
-    filtered_customer_count = len(df_filtered)
-
+    
+    # --- Cálculo único al final ---
+    filtered_customer_count = len(df_filtered) 
 
 else:
     st.sidebar.warning("No hay datos para filtrar.")
+    filtered_customer_count = 0 # Asegurar que la variable exista
 
 st.sidebar.metric("Clientes Filtrados", filtered_customer_count)
 st.sidebar.divider()
 st.sidebar.info("Use los filtros para explorar segmentos.")
 
-
-tab1, tab2, tab3, tab4 = st.tabs([
+# --- Definición de Pestañas ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📈 KPIs y Tendencias",
     "📊 Distribuciones Recientes",
     "🔬 Monitor de Drift",
-    "🗃️ Clientes Filtrados"
+    "🗃️ Clientes Filtrados",
+    "🕵️‍♂️ Explicabilidad (SHAP)"
 ])
 
-
+# --- Pestaña 1: KPIs ---
 with tab1:
     st.header("Métricas Globales Recientes")
     if conn is None:
@@ -182,12 +250,12 @@ with tab1:
                     st.line_chart(churn_rate_hourly, width='stretch')
                 else:
                     st.info("Insuficientes datos para tendencia de tasa de churn predicha.")
-
         else:
              st.warning("Columna 'timestamp' no encontrada.")
     else:
         st.info("Aún no hay datos para mostrar KPIs o tendencias.")
 
+# --- Pestaña 2: Distribuciones ---
 with tab2:
     st.header("Distribución de Features Recientes")
     if not df_kpis.empty:
@@ -200,10 +268,10 @@ with tab2:
 
             if 'geography' in df_kpis.columns:
                  st.subheader("País Reciente")
-                 st.bar_chart(df_kpis['geography'].value_counts())
+                 st.bar_chart(df_kpis['geography'].value_counts(), width='stretch')
             if 'hascrcard' in df_kpis.columns:
                  st.subheader("Tiene Tarjeta Crédito Reciente")
-                 st.bar_chart(df_kpis['hascrcard'].value_counts())
+                 st.bar_chart(df_kpis['hascrcard'].value_counts(), width='stretch')
         
         with col_feat2:
              if 'balance' in df_kpis.columns:
@@ -213,13 +281,14 @@ with tab2:
 
              if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos Recientes")
-                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index())
+                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width='stretch')
              if 'isactivemember' in df_kpis.columns:
                  st.subheader("Miembro Activo Reciente")
-                 st.bar_chart(df_kpis['isactivemember'].value_counts())
+                 st.bar_chart(df_kpis['isactivemember'].value_counts(), width='stretch')
     else:
         st.info("No hay datos recientes para mostrar distribuciones.")
 
+# --- Pestaña 3: Monitor de Drift ---
 with tab3:
     st.header("Reporte de Data Drift")
     st.markdown(f"Mostrando el último reporte generado desde: [GitHub Pages]({REPORT_URL})")
@@ -230,17 +299,95 @@ with tab3:
         st.warning(f"Verifica la URL: {REPORT_URL}")
 
 
+# --- Pestaña 4: Clientes Filtrados (Ahora con selección) ---
+# Esta variable contendrá los datos listos para el modelo
+df_for_model = pd.DataFrame()
+
 with tab4:
     st.header("Muestra de Clientes Filtrados")
-    st.info(f"Mostrando clientes basados en filtros de la barra lateral (Probabilidad >= {min_prob_threshold:.0%})")
+    st.info(f"Mostrando clientes basados en filtros (Probabilidad >= {min_prob_threshold:.0%}). Selecciona una fila para analizarla en la pestaña SHAP.")
+    
     if conn is None:
          st.error("No se pudo conectar a la base de datos.")
     elif not df_filtered.empty:
         cols_to_show = ['timestamp', 'prediction', 'confidence', 'creditscore', 'age', 'tenure',
                         'balance', 'numofproducts', 'hascrcard', 'isactivemember',
-                        'estimatedsalary', 'geography', 'gender', 'latency_ms']
-        st.dataframe(df_filtered[cols_to_show].head(100))
+                        'estimatedsalary', 'geography', 'gender']
+        
+        # --- Prepara los datos para el modelo SHAP ---
+        df_for_model = df_filtered.copy()
+        
+        # Añadir columnas faltantes si no estaban en los datos recientes
+        for col in MODEL_FEATURE_COLS:
+            if col not in df_for_model.columns:
+                df_for_model[col] = False # Asumimos False/0 si no existe
+
+        # Asegura que las columnas estén en el orden exacto que el modelo espera
+        # y convierte a float, ya que el scaler lo espera.
+        df_for_model = df_for_model[MODEL_FEATURE_COLS].astype(float)
+
+        # ---'key' y 'on_select' para interactividad ---
+        st.dataframe(
+            df_filtered[cols_to_show].head(100),
+            key="df_selector", # Clave para acceder a la selección
+            on_select="rerun",
+            selection_mode="single-row"
+        )
     elif df_kpis.empty:
          st.info("No hay datos recientes en la base de datos.")
     else:
         st.warning("Ningún cliente cumple los criterios de filtro en los datos recientes.")
+
+# --- Pestaña 5: Explicabilidad (SHAP) ---
+with tab5:
+    st.header("🕵️‍♂️ Explicabilidad del Modelo (SHAP)")
+    
+    # --- 1. GRÁFICO GENERAL (Estático desde PNG) ---
+    st.subheader("Importancia Global de Features")
+    
+    try:
+        # Asume que 'shap_summary.png' está en la misma carpeta
+        st.image("..shap_summary.png", width='stretch')
+    except FileNotFoundError:
+        st.error("No se encontró el archivo shap_summary.png")
+
+    st.divider()
+
+    # --- 2. GRÁFICO ESPECÍFICO (Interactivo) ---
+    st.subheader("Análisis de Cliente Específico (Filtrado)")
+    
+    # Revisa si se ha seleccionado algo en el dataframe de la Tab 4
+    if "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
+        st.info("Por favor, selecciona un cliente en la pestaña '🗃️ Clientes Filtrados' para un análisis detallado.")
+    
+    else:
+        try:
+            # Obtiene el índice de la fila seleccionada
+            selected_index = st.session_state.df_selector.selection["rows"][0]
+            
+            # Obtiene los datos de esa fila (ya listos para el modelo)
+            if not df_for_model.empty and selected_index < len(df_for_model):
+                customer_data = df_for_model.iloc[selected_index]
+                
+                # Calcula los valores SHAP solo para este cliente
+                shap_values_customer = explainer(customer_data)
+                
+                st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data['creditscore']:.0f}** y `age` de **{customer_data['age']:.0f}**:")
+
+                # Muestra el gráfico force_plot interactivo
+                st_shap(shap.force_plot(shap_values_customer.base_values,
+                                        shap_values_customer.values,
+                                        customer_data))
+                
+                # Muestra el gráfico waterfall estático
+                st.write("Desglose del impacto (Waterfall):")
+                fig_waterfall, ax_waterfall = plt.subplots()
+                # Usamos el objeto Explanation directamente
+                shap.plots.waterfall(shap_values_customer, max_display=15, show=False) 
+                st.pyplot(fig_waterfall)
+            else:
+                st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
+
+        except Exception as e:
+            st.error(f"Error al generar el gráfico SHAP para el cliente: {e}")
+            st.write("Asegúrate de que los datos del cliente coinciden con el formato del modelo.")

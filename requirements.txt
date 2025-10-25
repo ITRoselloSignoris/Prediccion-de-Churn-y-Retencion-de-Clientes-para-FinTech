@@ -17,3 +17,5 @@ funpymodeling
 evidently
 streamlit
 shap
+streamlit-shap
+plotly
