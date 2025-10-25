@@ -125,7 +125,14 @@ if __name__ == "__main__":
         elif target_col_lower not in df_hist.columns:
              print(f"Error: Columna target '{TARGET_COLUMN_NAME}' no encontrada en datos históricos.")
         else:
-             generate_drift_report(df_recent, df_hist, FEATURE_COLUMNS_TO_MONITOR, target_col_lower, prediction_col_lower, OUTPUT_REPORT_PATH)
+            print(f"Renombrando '{prediction_col_lower}' a '{target_col_lower}' en df_recent para la comparación.")
+            df_recent.rename(columns={prediction_col_lower: target_col_lower}, inplace=True)
+            generate_drift_report(df_recent, 
+                                  df_hist, 
+                                  FEATURE_COLUMNS_TO_MONITOR, 
+                                  target_col_lower, 
+                                  prediction_col_lower, 
+                                  OUTPUT_REPORT_PATH)
     else:
         print("No se generó el reporte: uno o ambos datasets están vacíos o no se pudieron cargar.")
 
