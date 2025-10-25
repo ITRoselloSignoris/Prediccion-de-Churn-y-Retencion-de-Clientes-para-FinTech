@@ -347,7 +347,7 @@ with tab5:
     
     try:
         # Asume que 'shap_summary.png' está en la misma carpeta
-        st.image("..shap_summary.png", width='stretch')
+        st.image("deployment/shap_plots/shap_summary.png", width='stretch')
     except FileNotFoundError:
         st.error("No se encontró el archivo shap_summary.png")
 
