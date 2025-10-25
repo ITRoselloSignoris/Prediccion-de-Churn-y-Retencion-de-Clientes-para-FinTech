@@ -131,7 +131,7 @@ if __name__ == "__main__":
                                   df_hist, 
                                   FEATURE_COLUMNS_TO_MONITOR, 
                                   target_col_lower, 
-                                  prediction_col_lower, 
+                                  target_col_lower, 
                                   OUTPUT_REPORT_PATH)
     else:
         print("No se generó el reporte: uno o ambos datasets están vacíos o no se pudieron cargar.")
