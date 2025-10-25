@@ -368,17 +368,19 @@ with tab5:
             
             # Obtiene los datos de esa fila (ya listos para el modelo)
             if not df_for_model.empty and selected_index < len(df_for_model):
-                customer_data = df_for_model.iloc[selected_index]
+                customer_data_df = df_for_model.iloc[[selected_index]]
+                customer_data_series = df_for_model.iloc[selected_index]
                 
                 # Calcula los valores SHAP solo para este cliente
-                shap_values_customer = explainer(customer_data)
+                shap_values_batch = explainer(customer_data_df)
+                shap_values_customer = shap_values_batch[0]
                 
-                st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data['creditscore']:.0f}** y `age` de **{customer_data['age']:.0f}**:")
+                st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data_series['creditscore']:.0f}** y `age` de **{customer_data_series['age']:.0f}**:")
 
                 # Muestra el gráfico force_plot interactivo
                 st_shap(shap.force_plot(shap_values_customer.base_values,
                                         shap_values_customer.values,
-                                        customer_data))
+                                        customer_data_series))
                 
                 # Muestra el gráfico waterfall estático
                 st.write("Desglose del impacto (Waterfall):")
