@@ -117,12 +117,15 @@ if __name__ == "__main__":
         df_recent.columns = df_recent.columns.str.lower()
         df_hist.columns = df_hist.columns.str.lower()
 
-        if PREDICTION_COLUMN_NAME not in df_recent.columns:
+        target_col_lower = TARGET_COLUMN_NAME.lower()
+        prediction_col_lower = PREDICTION_COLUMN_NAME.lower()
+
+        if prediction_col_lower not in df_recent.columns:
              print(f"Error: Columna de predicción '{PREDICTION_COLUMN_NAME}' no encontrada en datos recientes.")
-        elif TARGET_COLUMN_NAME.lower() not in df_hist.columns:
+        elif target_col_lower not in df_hist.columns:
              print(f"Error: Columna target '{TARGET_COLUMN_NAME}' no encontrada en datos históricos.")
         else:
-             generate_drift_report(df_recent, df_hist, FEATURE_COLUMNS_TO_MONITOR, TARGET_COLUMN_NAME, PREDICTION_COLUMN_NAME, OUTPUT_REPORT_PATH)
+             generate_drift_report(df_recent, df_hist, FEATURE_COLUMNS_TO_MONITOR, target_col_lower, prediction_col_lower, OUTPUT_REPORT_PATH)
     else:
         print("No se generó el reporte: uno o ambos datasets están vacíos o no se pudieron cargar.")
 

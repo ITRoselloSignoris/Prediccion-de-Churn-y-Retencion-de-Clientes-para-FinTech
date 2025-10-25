@@ -166,20 +166,20 @@ with tab1:
             if 'confidence' in df_resample.columns:
                 st.subheader("Confianza Promedio (Score) por Hora")
                 confidence_hourly = df_resample['confidence'].resample('h').mean().dropna()
-                if not confidence_hourly.empty: st.line_chart(confidence_hourly, use_container_width=True)
+                if not confidence_hourly.empty: st.line_chart(confidence_hourly, width='stretch')
                 else: st.info("Insuficientes datos de confianza.")
 
             if 'latency_ms' in df_resample.columns:
                 st.subheader("Latencia Promedio por Hora")
                 latency_hourly = df_resample['latency_ms'].resample('h').mean().dropna()
-                if not latency_hourly.empty: st.line_chart(latency_hourly, use_container_width=True)
+                if not latency_hourly.empty: st.line_chart(latency_hourly, width='stretch')
                 else: st.info("Insuficientes datos de latencia.")
 
             if 'prediction' in df_resample.columns:
                 st.subheader("Tasa de Churn Predicha por Hora (%)")
                 churn_rate_hourly = df_resample['prediction'].resample('h').apply(lambda x: (x == 1).mean() * 100).dropna()
                 if not churn_rate_hourly.empty:
-                    st.line_chart(churn_rate_hourly, use_container_width=True)
+                    st.line_chart(churn_rate_hourly, width='stretch')
                 else:
                     st.info("Insuficientes datos para tendencia de tasa de churn predicha.")
 
@@ -196,7 +196,7 @@ with tab2:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad Reciente")
                 fig_age = px.histogram(df_kpis['age'].dropna(), nbins=30)
-                st.plotly_chart(fig_age, use_container_width=True)
+                st.plotly_chart(fig_age, width='stretch')
 
             if 'geography' in df_kpis.columns:
                  st.subheader("País Reciente")
@@ -209,7 +209,7 @@ with tab2:
              if 'balance' in df_kpis.columns:
                  st.subheader("Saldo Reciente")
                  fig_balance = px.histogram(df_kpis['balance'].dropna(), nbins=30)
-                 st.plotly_chart(fig_balance, use_container_width=True)
+                 st.plotly_chart(fig_balance, width='stretch')
 
              if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos Recientes")
