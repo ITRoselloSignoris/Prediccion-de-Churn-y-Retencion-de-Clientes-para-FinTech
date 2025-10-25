@@ -20,8 +20,8 @@ REPORT_URL = "https://itrosellosignoris.github.io/Prediccion-de-Churn-y-Retencio
 DB_CONNECTION_STRING = st.secrets.get("SUPABASE_CONNECTION_STRING")
 
 # --- Constantes para SHAP ---
-MODEL_PATH = "../src/model/best_model.pkl"
-BACKGROUND_DATA_PATH = "data/X_train_final_linear.csv" 
+MODEL_PATH = "src/model/best_model.pkl"
+BACKGROUND_DATA_PATH = "deployment/data/X_train_final_linear.csv" 
 
 # Lista de features EXACTAS que espera tu modelo (de training.ipynb)
 MODEL_FEATURE_COLS = [
