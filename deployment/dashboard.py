@@ -6,8 +6,8 @@ import plotly.express as px
 import numpy as np
 import pickle
 import shap
-shap.initjs() # Necesario para el correcto renderizado de plots HTML (aunque no los usemos)
-# from streamlit_shap import st_shap # Ya no es necesario si usamos solo Matplotlib
+shap.initjs() # Necesario para el correcto renderizado inicial
+# from streamlit_shap import st_shap # No necesario si usamos Matplotlib
 import matplotlib.pyplot as plt
 
 st.set_page_config(
@@ -71,10 +71,10 @@ def load_background_data():
         df_background = pd.read_csv(BACKGROUND_DATA_PATH)
         df_background.columns = df_background.columns.str.lower()
         if not all(col in df_background.columns for col in MODEL_FEATURE_COLS):
-             st.warning(f"Columnas de {BACKGROUND_DATA_PATH} no coinciden con MODEL_FEATURE_COLS.")
+             st.warning(f"Columnas en {BACKGROUND_DATA_PATH} no coinciden.")
         return df_background[MODEL_FEATURE_COLS]
     except FileNotFoundError:
-        st.error(f"Error: No se encontró el archivo de datos de fondo en {BACKGROUND_DATA_PATH}")
+        st.error(f"Error: Datos de fondo no encontrados en {BACKGROUND_DATA_PATH}")
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Error al cargar datos de fondo: {e}")
@@ -164,17 +164,17 @@ st.sidebar.header("Filtros de Segmentación 🧭")
 min_prob_threshold = 0.5
 df_filtered = pd.DataFrame()
 if not df_kpis.empty and 'confidence' in df_kpis.columns:
-    min_prob_threshold = st.sidebar.slider("Filtrar por Probabilidad Mínima de Churn:", 0.0, 1.0, 0.5, 0.05)
+    min_prob_threshold = st.sidebar.slider("Probabilidad Mínima:", 0.0, 1.0, 0.5, 0.05)
     df_filtered = df_kpis[df_kpis['confidence'] >= min_prob_threshold].copy()
     unique_geo = sorted(df_kpis['geography'].dropna().unique())
-    geo_filter = st.sidebar.multiselect("Filtrar por País:", options=unique_geo, default=unique_geo)
+    geo_filter = st.sidebar.multiselect("País:", options=unique_geo, default=unique_geo)
     df_filtered = df_filtered[df_filtered['geography'].isin(geo_filter)]
     unique_gender = sorted(df_kpis['gender'].dropna().unique())
-    gender_filter = st.sidebar.multiselect("Filtrar por Género:", options=unique_gender, default=unique_gender)
+    gender_filter = st.sidebar.multiselect("Género:", options=unique_gender, default=unique_gender)
     df_filtered = df_filtered[df_filtered['gender'].isin(gender_filter)]
     is_active_options = ["Todos", "Activos", "Inactivos"]
     is_active_map = {"Activos": True, "Inactivos": False}
-    is_active_filter_selection = st.sidebar.selectbox("Filtrar por Miembro Activo:", options=is_active_options, index=0)
+    is_active_filter_selection = st.sidebar.selectbox("Miembro Activo:", options=is_active_options, index=0)
     if is_active_filter_selection != "Todos":
         df_filtered = df_filtered[df_filtered['isactivemember'] == is_active_map[is_active_filter_selection]]
     filtered_customer_count = len(df_filtered)
@@ -183,63 +183,68 @@ else:
     filtered_customer_count = 0
 st.sidebar.metric("Clientes Filtrados", filtered_customer_count)
 st.sidebar.divider()
-st.sidebar.info("Use los filtros para explorar segmentos.")
+st.sidebar.info("Use filtros para explorar.")
 
 # --- Definición de Pestañas ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📈 KPIs y Tendencias", "📊 Distribuciones Recientes", "🔬 Monitor de Drift",
-    "🗃️ Clientes Filtrados", "🕵️‍♂️ Explicabilidad (SHAP)"
-])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 KPIs", "📊 Distribuciones", "🔬 Drift", "🗃️ Filtrados", "🕵️‍♂️ SHAP"])
 
 # --- Pestaña 1: KPIs ---
 with tab1:
     st.header("Métricas Globales Recientes")
-    if conn is None: st.error("...") # Mensaje de error
+    if conn is None: st.error("Sin conexión a BD.")
     elif not df_kpis.empty:
         col1, col2, col3 = st.columns(3)
         total_preds = len(df_kpis)
-        col1.metric("Total Predicciones (últimas 5k)", f"{total_preds}")
-        riesgo_churn_global = df_kpis[df_kpis['prediction'] == 1].shape[0]
-        col2.metric("Clientes en Riesgo Global (Predichos)", f"{riesgo_churn_global} ({riesgo_churn_global/total_preds:.1%})" if total_preds > 0 else f"{riesgo_churn_global}")
-        latencia_avg_global = df_kpis['latency_ms'].mean()
-        col3.metric("Latencia Promedio Global", f"{latencia_avg_global:.2f} ms" if pd.notna(latencia_avg_global) else "N/A")
+        col1.metric("Predicciones (5k)", f"{total_preds}")
+        riesgo = df_kpis[df_kpis['prediction'] == 1].shape[0]
+        col2.metric("Riesgo Global", f"{riesgo} ({riesgo/total_preds:.1%})" if total_preds > 0 else f"{riesgo}")
+        latencia = df_kpis['latency_ms'].mean()
+        col3.metric("Latencia Media", f"{latencia:.2f} ms" if pd.notna(latencia) else "N/A")
         st.divider()
-        st.header("Tendencias Temporales Globales (Promedios por Hora)")
+        st.header("Tendencias (Promedios Hora)")
         df_resample = df_kpis.copy()
         if 'timestamp' in df_resample.columns:
             df_resample.set_index('timestamp', inplace=True)
+            # --- CORREGIDO: Usar width='stretch' ---
             if 'confidence' in df_resample.columns:
-                st.subheader("Confianza Promedio (Score) por Hora")
-                confidence_hourly = df_resample['confidence'].resample('h').mean().dropna()
-                if not confidence_hourly.empty: st.line_chart(confidence_hourly, width='stretch')
-                else: st.info("Insuficientes datos de confianza.")
+                st.subheader("Confianza Media")
+                conf_h = df_resample['confidence'].resample('h').mean().dropna()
+                if not conf_h.empty: st.line_chart(conf_h, width='stretch')
+                else: st.info("Insuficientes datos.")
             if 'latency_ms' in df_resample.columns:
-                st.subheader("Latencia Promedio por Hora")
-                latency_hourly = df_resample['latency_ms'].resample('h').mean().dropna()
-                if not latency_hourly.empty: st.line_chart(latency_hourly, width='stretch')
-                else: st.info("Insuficientes datos de latencia.")
+                st.subheader("Latencia Media")
+                lat_h = df_resample['latency_ms'].resample('h').mean().dropna()
+                if not lat_h.empty: st.line_chart(lat_h, width='stretch')
+                else: st.info("Insuficientes datos.")
             if 'prediction' in df_resample.columns:
-                st.subheader("Tasa de Churn Predicha por Hora (%)")
-                churn_rate_hourly = df_resample['prediction'].resample('h').apply(lambda x: (x == 1).mean() * 100).dropna()
-                if not churn_rate_hourly.empty: st.line_chart(churn_rate_hourly, width='stretch')
-                else: st.info("Insuficientes datos para tendencia.")
-        else: st.warning("Columna 'timestamp' no encontrada.")
-    else: st.info("Aún no hay datos para mostrar KPIs o tendencias.")
+                st.subheader("Tasa Churn Predicha (%)")
+                churn_h = df_resample['prediction'].resample('h').apply(lambda x: (x == 1).mean() * 100).dropna()
+                if not churn_h.empty: st.line_chart(churn_h, width='stretch')
+                else: st.info("Insuficientes datos.")
+        else: st.warning("'timestamp' no encontrado.")
+    else: st.info("Sin datos para KPIs.")
 
 # --- Pestaña 2: Distribuciones ---
 with tab2:
-    st.header("Distribución de Features Recientes")
+    st.header("Distribución Features Recientes")
     if not df_kpis.empty:
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
+            # --- CORREGIDO: Usar use_container_width=True ---
             if 'age' in df_kpis.columns:
                 st.subheader("Edad")
-                fig_age = px.histogram(df_kpis['age'].dropna())
-                st.plotly_chart(fig_age, width="stretch")
+                fig = px.histogram(df_kpis['age'].dropna())
+                st.plotly_chart(fig, use_container_width=True)
             if 'creditscore' in df_kpis.columns:
                 st.subheader("Credit Score")
-                fig_credit = px.histogram(df_kpis['creditscore'].dropna())
-                st.plotly_chart(fig_credit, width="stretch")
+                fig = px.histogram(df_kpis['creditscore'].dropna())
+                st.plotly_chart(fig, use_container_width=True)
+            if 'balance' in df_kpis.columns:
+                 st.subheader("Saldo")
+                 fig = px.histogram(df_kpis['balance'].dropna())
+                 st.plotly_chart(fig, use_container_width=True)
+        with col2:
+            # --- CORREGIDO: Usar width='stretch' ---
             if 'geography' in df_kpis.columns:
                  st.subheader("País")
                  st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
@@ -249,114 +254,92 @@ with tab2:
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
                  st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
-        with col2:
-            if 'balance' in df_kpis.columns:
-                 st.subheader("Saldo")
-                 fig_balance = px.histogram(df_kpis['balance'].dropna())
-                 st.plotly_chart(fig_balance, width="stretch")
-            if 'estimatedsalary' in df_kpis.columns:
-                 st.subheader("Salario Estimado")
-                 fig_salary = px.histogram(df_kpis['estimatedsalary'].dropna())
-                 st.plotly_chart(fig_salary, width="stretch")
+        with col3:
+             # --- CORREGIDO: Usar width='stretch' ---
             if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos")
                   st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
             if 'hascrcard' in df_kpis.columns:
-                 st.subheader("Tiene Tarjeta Crédito")
+                 st.subheader("Tarjeta Créd.")
                  st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
             if 'isactivemember' in df_kpis.columns:
                  st.subheader("Miembro Activo")
                  st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
-            
-    else: st.info("No hay datos recientes para mostrar distribuciones.")
+            # --- CORREGIDO: Usar use_container_width=True ---
+            if 'estimatedsalary' in df_kpis.columns:
+                 st.subheader("Salario Est.")
+                 fig = px.histogram(df_kpis['estimatedsalary'].dropna())
+                 st.plotly_chart(fig, use_container_width=True)
+    else: st.info("Sin datos para distribuciones.")
 
 # --- Pestaña 3: Monitor de Drift ---
 with tab3:
-    st.header("Reporte de Data Drift")
-    st.markdown(f"Mostrando el último reporte generado desde: [GitHub Pages]({REPORT_URL})")
+    st.header("Reporte Data Drift")
+    st.markdown(f"[Ver Reporte]({REPORT_URL})")
     try: st.components.v1.iframe(REPORT_URL, height=1000, scrolling=True)
-    except Exception as e:
-        st.error(f"No se pudo cargar el reporte de drift.")
-        st.warning(f"Verifica la URL: {REPORT_URL}")
+    except Exception as e: st.error(f"No se cargó reporte: {e}"); st.warning(f"URL: {REPORT_URL}")
 
 # --- Pestaña 4: Clientes Filtrados ---
-df_for_model = pd.DataFrame()
+df_for_model = pd.DataFrame() # Debe estar fuera del 'with' para ser accesible en tab5
 with tab4:
-    st.header("Muestra de Clientes Filtrados")
-    st.info("Selecciona una fila para analizarla en la pestaña SHAP.")
-    if conn is None: st.error("...") # Mensaje de error
+    st.header("Muestra Clientes Filtrados")
+    st.info("Selecciona fila para análisis SHAP.")
+    if conn is None: st.error("Sin conexión BD.")
     elif not df_filtered.empty:
-        cols_to_show = ['timestamp', 'prediction', 'confidence', 'creditscore', 'age', 'tenure', 'balance', 'numofproducts', 'hascrcard', 'isactivemember', 'estimatedsalary', 'geography', 'gender']
+        cols_show = ['timestamp', 'prediction', 'confidence', 'creditscore', 'age', 'tenure', 'balance', 'numofproducts', 'hascrcard', 'isactivemember', 'estimatedsalary', 'geography', 'gender']
+        # Preparar datos para SHAP (minúsculas y orden correcto)
         df_for_model = df_filtered.copy()
         for col in MODEL_FEATURE_COLS:
             if col not in df_for_model.columns: df_for_model[col] = False
-        df_for_model = df_for_model[MODEL_FEATURE_COLS].astype(float)
-        st.dataframe(df_filtered[cols_to_show].head(100), key="df_selector", on_select="rerun", selection_mode="single-row")
-    elif df_kpis.empty: st.info("No hay datos recientes.")
-    else: st.warning("Ningún cliente cumple los filtros.")
+        df_for_model = df_for_model[MODEL_FEATURE_COLS].astype(float) # Asegura orden y tipo
+        st.dataframe(df_filtered[cols_show].head(100), key="df_selector", on_select="rerun", selection_mode="single-row")
+    elif df_kpis.empty: st.info("Sin datos recientes.")
+    else: st.warning("Ningún cliente cumple filtros.")
 
 # --- Pestaña 5: Explicabilidad (SHAP) ---
 with tab5:
-    st.header("🕵️‍♂️ Explicabilidad del Modelo (SHAP)")
-
-    # --- 1. GRÁFICO GENERAL (Estático desde PNG) ---
-    st.subheader("Importancia Global de Features")
-    try:
-        st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
-    except FileNotFoundError:
-        st.error("No se encontró el archivo shap_summary.png")
-
+    st.header("🕵️‍♂️ Explicabilidad (SHAP)")
+    st.subheader("Importancia Global")
+    try: st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
+    except FileNotFoundError: st.error("No se encontró shap_summary.png")
     st.divider()
+    st.subheader("Análisis Específico")
 
-    # --- 2. GRÁFICO ESPECÍFICO (Filtrado) ---
-    st.subheader("Análisis de Cliente Específico (Filtrado)")
-
-    # Comprueba que scaler, explainer estén listos
     if explainer is None or scaler is None:
-        st.error("Recursos del modelo, scaler o SHAP no cargados. Revisa las rutas de los archivos .pkl.")
+        st.error("Recursos SHAP no cargados.")
     elif "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
-        st.info("Por favor, selecciona un cliente en la pestaña '🗃️ Clientes Filtrados' para un análisis detallado.")
+        st.info("Selecciona cliente en 'Filtrados'.")
     else:
         try:
             selected_index = st.session_state.df_selector.selection["rows"][0]
-
             if not df_for_model.empty and selected_index < len(df_for_model):
+                # Datos NO escalados (minúsculas)
+                cust_unscaled_df = df_for_model.iloc[[selected_index]]
+                cust_unscaled_series = df_for_model.iloc[selected_index]
 
-                # Datos NO escalados (para mostrar)
-                customer_data_unscaled_df = df_for_model.iloc[[selected_index]]
-                customer_data_unscaled_series = df_for_model.iloc[selected_index]
-
-                # --- Renombrar para el scaler ---
-                rename_map = {col: col.capitalize() for col in customer_data_unscaled_df.columns}
+                # Renombrar a MAYÚSCULAS para el scaler
+                rename_map = {col: col.capitalize() for col in cust_unscaled_df.columns}
                 rename_map.update({'creditscore': 'CreditScore', 'hascrcard': 'HasCrCard', 'isactivemember': 'IsActiveMember', 'estimatedsalary': 'EstimatedSalary', 'geography_france': 'Geography_France', 'geography_germany': 'Geography_Germany', 'geography_spain': 'Geography_Spain', 'gender_female': 'Gender_Female', 'gender_male': 'Gender_Male', 'numofproducts_1': 'NumOfProducts_1', 'numofproducts_2': 'NumOfProducts_2', 'numofproducts_3': 'NumOfProducts_3', 'numofproducts_4': 'NumOfProducts_4'})
-                customer_data_unscaled_df_UPPER = customer_data_unscaled_df.rename(columns=rename_map)
+                cust_unscaled_df_UPPER = cust_unscaled_df.rename(columns=rename_map)
 
-                # 1. Escalar los datos del cliente
-                customer_data_scaled_array = scaler.transform(customer_data_unscaled_df_UPPER)
+                # Escalar
+                cust_scaled_array = scaler.transform(cust_unscaled_df_UPPER)
 
-                # 2. Calcular SHAP con datos ESCALADOS
-                shap_values_output = explainer(customer_data_scaled_array) # Could be array or Explanation
+                # Calcular SHAP (devuelve array para LinearExplainer)
+                shap_values_output = explainer(cust_scaled_array)
 
-                # 3. Extraer componentes necesarios
-                base_value = explainer.expected_value
-                shap_values_customer_array = None
+                # --- CORRECCIÓN FINAL: Manejar salida y crear Explanation ---
+                if isinstance(shap_values_output, np.ndarray) and shap_values_output.shape[0] > 0 and shap_values_output.shape[1] == len(MODEL_FEATURE_COLS):
+                    shap_values_customer = shap_values_output[0]
+                    # Verificar si explainer.expected_value es un array o float
+                    base_value = explainer.expected_value[0] if isinstance(explainer.expected_value, np.ndarray) else explainer.expected_value
 
-                if isinstance(shap_values_output, np.ndarray):
-                    if shap_values_output.shape[0] > 0:
-                        shap_values_customer_array = shap_values_output[0]
-                elif isinstance(shap_values_output, shap.Explanation):
-                     if shap_values_output.values.shape[0] > 0:
-                         shap_values_customer_array = shap_values_output.values[0] # Extract the numpy array
-
-                # --- MODIFICACIÓN: Crear el Explanation final DESPUÉS de extraer valores ---
-                if shap_values_customer_array is not None and len(shap_values_customer_array) == len(customer_data_unscaled_series):
-
-                    # Crear el objeto Explanation final con los datos NO escalados
-                    shap_expl_customer_final = shap.Explanation(
-                        values=shap_values_customer_array,
+                    # Crear objeto Explanation con datos NO escalados
+                    shap_expl = shap.Explanation(
+                        values=shap_values_customer,
                         base_values=base_value,
-                        data=customer_data_unscaled_series.values, # Use unscaled data
-                        feature_names=customer_data_unscaled_series.index.tolist()
+                        data=cust_unscaled_series.values, # <-- Datos originales
+                        feature_names=cust_unscaled_series.index.tolist()
                     )
 
                     st.write(f"Análisis cliente (Índice: {selected_index}):")
@@ -364,47 +347,31 @@ with tab5:
 
                     # --- Force Plot ---
                     st.write("Gráfico de Fuerza:")
-                    # Pass the final Explanation object components
-                    fig_force = shap.force_plot(
-                        shap_expl_customer_final.base_values,
-                        shap_expl_customer_final.values,
-                        shap_expl_customer_final.data, # Unscaled data
-                        feature_names=shap_expl_customer_final.feature_names,
-                        matplotlib=True,
-                        show=False,
-                        text_rotation=0
-                    )
+                    # Necesitamos cerrar explícitamente la figura para evitar superposiciones
+                    plt.close('all')
+                    fig_force = shap.force_plot(shap_expl.base_values, shap_expl.values, shap_expl.data, feature_names=shap_expl.feature_names, matplotlib=True, show=False, text_rotation=0)
                     if fig_force:
-                        if theme == 'dark':
-                            # (Dark mode styling)
+                        if theme == 'dark': # Aplicar estilo oscuro
                             fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
                         st.pyplot(fig_force)
                     else: st.warning("No se generó gráfico de fuerza.")
 
                     # --- Waterfall Plot ---
                     st.write("Desglose (Waterfall):")
+                    # Necesitamos cerrar explícitamente la figura para evitar superposiciones
+                    plt.close('all')
                     if theme == 'dark': plt.style.use('dark_background')
-
-                    # Pass the final Explanation object
-                    shap.plots.waterfall(shap_expl_customer_final, max_display=15, show=False)
-
+                    shap.plots.waterfall(shap_expl, max_display=15, show=False) # Pasar el Explanation
                     fig_waterfall = plt.gcf()
-                    if theme == 'dark':
-                        fig_waterfall.patch.set_alpha(0.0)
-                        for ax in fig_waterfall.get_axes(): ax.patch.set_alpha(0.0)
+                    if theme == 'dark': # Aplicar estilo oscuro
+                        fig_waterfall.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_waterfall.get_axes()]
                     st.pyplot(fig_waterfall)
-                    plt.style.use('default') # Reset style
+                    plt.style.use('default') # Resetear estilo
 
                 else:
-                    st.error("Error: El cálculo SHAP devolvió un resultado inesperado, vacío o con dimensiones incorrectas.")
-                    st.write(f"Tipo devuelto por explainer: {type(shap_values_output)}")
-                    if hasattr(shap_values_output, 'shape'): st.write(f"Shape devuelto: {shap_values_output.shape}")
-                    if shap_values_customer_array is not None: st.write(f"Longitud array SHAP: {len(shap_values_customer_array)}")
-                    st.write(f"Longitud datos cliente: {len(customer_data_unscaled_series)}")
+                    st.error("Cálculo SHAP falló o devolvió formato inesperado.")
+                    st.write(f"Tipo devuelto: {type(shap_values_output)}")
+                    if hasattr(shap_values_output, 'shape'): st.write(f"Shape: {shap_values_output.shape}")
 
-
-            else:
-                st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
-
-        except Exception as e:
-            st.error(f"Error al generar el gráfico SHAP para el cliente: {e}")
+            else: st.warning("No se cargaron datos del cliente.")
+        except Exception as e: st.error(f"Error al generar gráfico SHAP: {e}")
