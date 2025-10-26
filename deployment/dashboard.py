@@ -386,6 +386,7 @@ with tab5:
     
     # --- 1. GRÁFICO GENERAL (Estático desde PNG) ---
     st.subheader("Importancia Global de Features")
+    
     try:
         st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
     except FileNotFoundError:
@@ -396,38 +397,53 @@ with tab5:
     # --- 2. GRÁFICO ESPECÍFICO (Filtrado) ---
     st.subheader("Análisis de Cliente Específico (Filtrado)")
     
-    # Comprueba que scaler, explainer estén listos
     if explainer is None or scaler is None:
         st.error("Recursos del modelo, scaler o SHAP no cargados. Revisa las rutas de los archivos .pkl.")
     
-    # Comprueba si se ha seleccionado un cliente
     elif "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
         st.info("Por favor, selecciona un cliente en la pestaña '🗃️ Clientes Filtrados' para un análisis detallado.")
     
-    # Si todo está listo, sigue
     else:
         try:
             selected_index = st.session_state.df_selector.selection["rows"][0]
             
             if not df_for_model.empty and selected_index < len(df_for_model):
                 
-                # Datos NO escalados
+                # Datos NO escalados (para mostrar)
                 customer_data_unscaled_df = df_for_model.iloc[[selected_index]]
                 customer_data_unscaled_series = df_for_model.iloc[selected_index]
                 
-                # --- Escalar los datos del cliente ---
-                customer_data_scaled_array = scaler.transform(customer_data_unscaled_df)
                 
-                # Calcular SHAP con datos ESCALADOS
+                # 1. Crear un mapa para renombrar (ej: 'age' -> 'Age')
+                rename_map = {col: col.capitalize() for col in customer_data_unscaled_df.columns}
+                
+                rename_map['creditscore'] = 'CreditScore'
+                rename_map['hascrcard'] = 'HasCrCard'
+                rename_map['isactivemember'] = 'IsActiveMember'
+                rename_map['estimatedsalary'] = 'EstimatedSalary'
+                rename_map['geography_france'] = 'Geography_France'
+                rename_map['geography_germany'] = 'Geography_Germany'
+                rename_map['geography_spain'] = 'Geography_Spain'
+                rename_map['gender_female'] = 'Gender_Female'
+                rename_map['gender_male'] = 'Gender_Male'
+                rename_map['numofproducts_1'] = 'NumOfProducts_1'
+                rename_map['numofproducts_2'] = 'NumOfProducts_2'
+                rename_map['numofproducts_3'] = 'NumOfProducts_3'
+                rename_map['numofproducts_4'] = 'NumOfProducts_4'
+
+                # 2. Aplicar el renombre temporal
+                customer_data_unscaled_df_UPPER = customer_data_unscaled_df.rename(columns=rename_map)
+
+                # 3. Escalar los datos del cliente 
+                customer_data_scaled_array = scaler.transform(customer_data_unscaled_df_UPPER)
+                
+                # 4. Calcular SHAP con datos ESCALADOS
                 shap_values_array_batch = explainer(customer_data_scaled_array)
                 
-                # Comprueba si el resultado está vacío 
-                if shap_values_array_batch.shape[0] > 0:
-                    
-                    # Obtener el array 1D de valores SHAP
+                if shap_values_array_batch.shape[0] == 0:
+                    st.error("Error: El explainer devolvió un resultado vacío.")
+                else:
                     shap_values_customer_array = shap_values_array_batch[0]
-                    
-                    # Obtener el valor base manualmente
                     base_value = explainer.expected_value
 
                     st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data_unscaled_series['creditscore']:.0f}** y `age` de **{customer_data_unscaled_series['age']:.0f}**:")
@@ -444,7 +460,7 @@ with tab5:
                     fig_force = shap.force_plot(
                         base_value, 
                         shap_values_customer_array, 
-                        customer_data_unscaled_series, # Usar datos no escalados para mostrar
+                        customer_data_unscaled_series, 
                         matplotlib=True,
                         show=False,
                         text_rotation=0
@@ -477,8 +493,8 @@ with tab5:
                         plt.style.use('dark_background')
                     
                     shap.plots.waterfall(shap_explanation_object, max_display=15, show=False) 
-                    fig_waterfall = plt.gcf()
                     
+                    fig_waterfall = plt.gcf()
                     if theme == 'dark':
                         fig_waterfall.patch.set_alpha(0.0)
                         for ax in fig_waterfall.get_axes():
@@ -486,9 +502,6 @@ with tab5:
                     
                     st.pyplot(fig_waterfall)
                     plt.style.use('default')
-                
-                else:
-                    st.error("Error: El explainer devolvió un resultado vacío. Comprueba los datos.")
                 
             else:
                 st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
