@@ -6,8 +6,7 @@ import plotly.express as px
 import numpy as np
 import pickle
 import shap
-shap.initjs() # Necesario para el correcto renderizado inicial
-# from streamlit_shap import st_shap # No necesario si usamos Matplotlib
+shap.initjs() 
 import matplotlib.pyplot as plt
 
 st.set_page_config(
@@ -20,12 +19,12 @@ st.title("📊 Dashboard de Monitoreo del Modelo de Churn")
 REPORT_URL = "https://itrosellosignoris.github.io/Prediccion-de-Churn-y-Retencion-de-Clientes-para-FinTech/drift_report.html"
 DB_CONNECTION_STRING = st.secrets.get("SUPABASE_CONNECTION_STRING")
 
-# --- Constantes para SHAP ---
+# --- PATHS para SHAP ---
 MODEL_PATH = "src/model/best_model.pkl"
 SCALER_PATH = "src/model/scaler.pkl"
 BACKGROUND_DATA_PATH = "deployment/data/X_train_final_linear.csv"
 
-# Lista de features EXACTAS que espera tu modelo
+# Lista de features EXACTAS que espera el modelo
 MODEL_FEATURE_COLS = [
     'creditscore', 'age', 'tenure', 'balance',
     'hascrcard', 'isactivemember', 'estimatedsalary',
@@ -186,8 +185,13 @@ st.sidebar.divider()
 st.sidebar.info("Use filtros para explorar.")
 
 # --- Definición de Pestañas ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 KPIs", "📊 Distribuciones", "🔬 Drift", "🗃️ Filtrados", "🕵️‍♂️ SHAP"])
-
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📈 KPIs y Tendencias",
+    "📊 Distribuciones Recientes",
+    "🔬 Monitor de Drift",
+    "🗃️ Clientes Filtrados",
+    "🕵️‍♂️ Explicabilidad (SHAP)"
+])
 # --- Pestaña 1: KPIs ---
 with tab1:
     st.header("Métricas Globales Recientes")
@@ -205,7 +209,6 @@ with tab1:
         df_resample = df_kpis.copy()
         if 'timestamp' in df_resample.columns:
             df_resample.set_index('timestamp', inplace=True)
-            # --- CORREGIDO: Usar width='stretch' ---
             if 'confidence' in df_resample.columns:
                 st.subheader("Confianza Media")
                 conf_h = df_resample['confidence'].resample('h').mean().dropna()
@@ -228,9 +231,8 @@ with tab1:
 with tab2:
     st.header("Distribución Features Recientes")
     if not df_kpis.empty:
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
-            # --- CORREGIDO: Usar use_container_width=True ---
             if 'age' in df_kpis.columns:
                 st.subheader("Edad")
                 fig = px.histogram(df_kpis['age'].dropna())
@@ -239,33 +241,29 @@ with tab2:
                 st.subheader("Credit Score")
                 fig = px.histogram(df_kpis['creditscore'].dropna())
                 st.plotly_chart(fig, use_container_width=True)
-            if 'balance' in df_kpis.columns:
-                 st.subheader("Saldo")
-                 fig = px.histogram(df_kpis['balance'].dropna())
-                 st.plotly_chart(fig, use_container_width=True)
-        with col2:
-            # --- CORREGIDO: Usar width='stretch' ---
             if 'geography' in df_kpis.columns:
                  st.subheader("País")
                  st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
             if 'gender' in df_kpis.columns:
                  st.subheader("Género")
                  st.bar_chart(df_kpis['gender'].value_counts(), width="stretch")
+            if 'isactivemember' in df_kpis.columns:
+                 st.subheader("Miembro Activo")
+                 st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
+        with col2:
+            if 'balance' in df_kpis.columns:
+                 st.subheader("Saldo")
+                 fig = px.histogram(df_kpis['balance'].dropna())
+                 st.plotly_chart(fig, use_container_width=True)
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
                  st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
-        with col3:
-             # --- CORREGIDO: Usar width='stretch' ---
             if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos")
                   st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
             if 'hascrcard' in df_kpis.columns:
                  st.subheader("Tarjeta Créd.")
                  st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
-            if 'isactivemember' in df_kpis.columns:
-                 st.subheader("Miembro Activo")
-                 st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
-            # --- CORREGIDO: Usar use_container_width=True ---
             if 'estimatedsalary' in df_kpis.columns:
                  st.subheader("Salario Est.")
                  fig = px.histogram(df_kpis['estimatedsalary'].dropna())
@@ -280,14 +278,14 @@ with tab3:
     except Exception as e: st.error(f"No se cargó reporte: {e}"); st.warning(f"URL: {REPORT_URL}")
 
 # --- Pestaña 4: Clientes Filtrados ---
-df_for_model = pd.DataFrame() # Debe estar fuera del 'with' para ser accesible en tab5
+df_for_model = pd.DataFrame() 
 with tab4:
     st.header("Muestra Clientes Filtrados")
     st.info("Selecciona fila para análisis SHAP.")
     if conn is None: st.error("Sin conexión BD.")
     elif not df_filtered.empty:
         cols_show = ['timestamp', 'prediction', 'confidence', 'creditscore', 'age', 'tenure', 'balance', 'numofproducts', 'hascrcard', 'isactivemember', 'estimatedsalary', 'geography', 'gender']
-        # Preparar datos para SHAP (minúsculas y orden correcto)
+        # Preparar datos para SHAP 
         df_for_model = df_filtered.copy()
         for col in MODEL_FEATURE_COLS:
             if col not in df_for_model.columns: df_for_model[col] = False
@@ -298,14 +296,14 @@ with tab4:
 
 # --- Pestaña 5: Explicabilidad (SHAP) ---
 with tab5:
-    st.header("🕵️‍♂️ Explicabilidad (SHAP)")
+    st.header("🕵️‍♂️ Explicabilidad del Modelo (SHAP)")
     st.subheader("Importancia Global")
     try:
         st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
     except FileNotFoundError:
         st.error("No se encontró shap_summary.png")
     st.divider()
-    st.subheader("Análisis Específico")
+    st.subheader("Análisis de Cliente Específico (Filtrado)")
 
     if explainer is None or scaler is None:
         st.error("Recursos SHAP no cargados.")
@@ -356,7 +354,8 @@ with tab5:
                     theme = st.get_option("theme.base") if hasattr(st, 'get_option') else 'light'
 
                     # --- Force Plot ---
-                    st.write("Gráfico de Fuerza:")
+                    st.markdown("#### 📊 Gráfico de Fuerza (Visión General)")
+                    st.caption("Muestra qué factores empujan (rojo) o frenan (azul) la predicción para este cliente.")
                     plt.close('all') # Asegura que no haya figuras previas abiertas
                     fig_force = shap.force_plot(shap_expl_customer.base_values, shap_expl_customer.values, shap_expl_customer.data, feature_names=shap_expl_customer.feature_names, matplotlib=True, show=False, text_rotation=0)
                     if fig_force:
@@ -364,9 +363,10 @@ with tab5:
                             fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
                         st.pyplot(fig_force)
                     else: st.warning("No se generó gráfico de fuerza.")
-
+                    st.markdown("---")
                     # --- Waterfall Plot ---
-                    st.write("Desglose (Waterfall):")
+                    st.markdown("#### 🌊 Desglose del Impacto (Waterfall)")
+                    st.caption("Detalla la contribución exacta de cada feature a la predicción final.")
                     plt.close('all') # Asegura que no haya figuras previas abiertas
                     if theme == 'dark': plt.style.use('dark_background')
                     shap.plots.waterfall(shap_expl_customer, max_display=15, show=False) # Pasar el Explanation
