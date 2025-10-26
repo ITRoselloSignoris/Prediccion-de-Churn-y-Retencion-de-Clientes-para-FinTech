@@ -300,8 +300,10 @@ with tab4:
 with tab5:
     st.header("🕵️‍♂️ Explicabilidad (SHAP)")
     st.subheader("Importancia Global")
-    try: st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
-    except FileNotFoundError: st.error("No se encontró shap_summary.png")
+    try:
+        st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
+    except FileNotFoundError:
+        st.error("No se encontró shap_summary.png")
     st.divider()
     st.subheader("Análisis Específico")
 
@@ -325,31 +327,38 @@ with tab5:
                 # Escalar
                 cust_scaled_array = scaler.transform(cust_unscaled_df_UPPER)
 
-                # Calcular SHAP (devuelve array para LinearExplainer)
-                shap_values_output = explainer(cust_scaled_array)
+                # Calcular SHAP (debería devolver Explanation)
+                shap_output = explainer(cust_scaled_array)
 
-                # --- CORRECCIÓN FINAL: Manejar salida y crear Explanation ---
-                if isinstance(shap_values_output, np.ndarray) and shap_values_output.shape[0] > 0 and shap_values_output.shape[1] == len(MODEL_FEATURE_COLS):
-                    shap_values_customer = shap_values_output[0]
-                    # Verificar si explainer.expected_value es un array o float
-                    base_value = explainer.expected_value[0] if isinstance(explainer.expected_value, np.ndarray) else explainer.expected_value
+                # --- CORRECCIÓN FINAL: Manejar Explanation como caso principal ---
+                shap_expl_customer = None # Inicializar
 
-                    # Crear objeto Explanation con datos NO escalados
-                    shap_expl = shap.Explanation(
-                        values=shap_values_customer,
-                        base_values=base_value,
-                        data=cust_unscaled_series.values, # <-- Datos originales
-                        feature_names=cust_unscaled_series.index.tolist()
-                    )
+                # Si es un objeto Explanation y no está vacío
+                if isinstance(shap_output, shap.Explanation) and shap_output.values.shape[0] > 0 and shap_output.values.shape[1] == len(MODEL_FEATURE_COLS):
+                    shap_expl_customer = shap_output[0] # Obtener la explicación de la fila 0
+                    # Reemplazar datos escalados por no escalados para el display
+                    shap_expl_customer.data = cust_unscaled_series.values
+                    shap_expl_customer.feature_names = cust_unscaled_series.index.tolist()
 
+                # Fallback: Si devuelve un array (versión antigua)
+                elif isinstance(shap_output, np.ndarray) and shap_output.shape[0] > 0 and shap_output.shape[1] == len(MODEL_FEATURE_COLS):
+                     st.warning("SHAP devolvió un array (formato antiguo). Creando Explanation manualmente.")
+                     shap_values_customer = shap_output[0]
+                     base_value = explainer.expected_value[0] if isinstance(explainer.expected_value, np.ndarray) else explainer.expected_value
+                     shap_expl_customer = shap.Explanation(
+                        values=shap_values_customer, base_values=base_value,
+                        data=cust_unscaled_series.values, feature_names=cust_unscaled_series.index.tolist()
+                     )
+
+                # Si tenemos un objeto Explanation válido, mostrar gráficos
+                if shap_expl_customer is not None:
                     st.write(f"Análisis cliente (Índice: {selected_index}):")
                     theme = st.get_option("theme.base") if hasattr(st, 'get_option') else 'light'
 
                     # --- Force Plot ---
                     st.write("Gráfico de Fuerza:")
-                    # Necesitamos cerrar explícitamente la figura para evitar superposiciones
-                    plt.close('all')
-                    fig_force = shap.force_plot(shap_expl.base_values, shap_expl.values, shap_expl.data, feature_names=shap_expl.feature_names, matplotlib=True, show=False, text_rotation=0)
+                    plt.close('all') # Asegura que no haya figuras previas abiertas
+                    fig_force = shap.force_plot(shap_expl_customer.base_values, shap_expl_customer.values, shap_expl_customer.data, feature_names=shap_expl_customer.feature_names, matplotlib=True, show=False, text_rotation=0)
                     if fig_force:
                         if theme == 'dark': # Aplicar estilo oscuro
                             fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
@@ -358,20 +367,20 @@ with tab5:
 
                     # --- Waterfall Plot ---
                     st.write("Desglose (Waterfall):")
-                    # Necesitamos cerrar explícitamente la figura para evitar superposiciones
-                    plt.close('all')
+                    plt.close('all') # Asegura que no haya figuras previas abiertas
                     if theme == 'dark': plt.style.use('dark_background')
-                    shap.plots.waterfall(shap_expl, max_display=15, show=False) # Pasar el Explanation
+                    shap.plots.waterfall(shap_expl_customer, max_display=15, show=False) # Pasar el Explanation
                     fig_waterfall = plt.gcf()
                     if theme == 'dark': # Aplicar estilo oscuro
                         fig_waterfall.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_waterfall.get_axes()]
                     st.pyplot(fig_waterfall)
                     plt.style.use('default') # Resetear estilo
 
+                # Si no se pudo crear/obtener el Explanation
                 else:
                     st.error("Cálculo SHAP falló o devolvió formato inesperado.")
-                    st.write(f"Tipo devuelto: {type(shap_values_output)}")
-                    if hasattr(shap_values_output, 'shape'): st.write(f"Shape: {shap_values_output.shape}")
+                    st.write(f"Tipo devuelto: {type(shap_output)}")
+                    if hasattr(shap_output, 'shape'): st.write(f"Shape: {shap_output.shape}")
 
             else: st.warning("No se cargaron datos del cliente.")
         except Exception as e: st.error(f"Error al generar gráfico SHAP: {e}")
