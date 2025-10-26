@@ -397,6 +397,7 @@ with tab5:
     # --- 2. GRÁFICO ESPECÍFICO (Filtrado) ---
     st.subheader("Análisis de Cliente Específico (Filtrado)")
     
+    # Comprueba que scaler, explainer estén listos
     if explainer is None or scaler is None:
         st.error("Recursos del modelo, scaler o SHAP no cargados. Revisa las rutas de los archivos .pkl.")
     
@@ -413,38 +414,34 @@ with tab5:
                 customer_data_unscaled_df = df_for_model.iloc[[selected_index]]
                 customer_data_unscaled_series = df_for_model.iloc[selected_index]
                 
-                
-                # 1. Crear un mapa para renombrar (ej: 'age' -> 'Age')
                 rename_map = {col: col.capitalize() for col in customer_data_unscaled_df.columns}
-                
-                rename_map['creditscore'] = 'CreditScore'
-                rename_map['hascrcard'] = 'HasCrCard'
-                rename_map['isactivemember'] = 'IsActiveMember'
-                rename_map['estimatedsalary'] = 'EstimatedSalary'
-                rename_map['geography_france'] = 'Geography_France'
-                rename_map['geography_germany'] = 'Geography_Germany'
-                rename_map['geography_spain'] = 'Geography_Spain'
-                rename_map['gender_female'] = 'Gender_Female'
-                rename_map['gender_male'] = 'Gender_Male'
-                rename_map['numofproducts_1'] = 'NumOfProducts_1'
-                rename_map['numofproducts_2'] = 'NumOfProducts_2'
-                rename_map['numofproducts_3'] = 'NumOfProducts_3'
-                rename_map['numofproducts_4'] = 'NumOfProducts_4'
-
-                # 2. Aplicar el renombre temporal
+                rename_map.update({
+                    'creditscore': 'CreditScore', 'hascrcard': 'HasCrCard', 'isactivemember': 'IsActiveMember',
+                    'estimatedsalary': 'EstimatedSalary', 'geography_france': 'Geography_France',
+                    'geography_germany': 'Geography_Germany', 'geography_spain': 'Geography_Spain',
+                    'gender_female': 'Gender_Female', 'gender_male': 'Gender_Male',
+                    'numofproducts_1': 'NumOfProducts_1', 'numofproducts_2': 'NumOfProducts_2',
+                    'numofproducts_3': 'NumOfProducts_3', 'numofproducts_4': 'NumOfProducts_4'
+                })
                 customer_data_unscaled_df_UPPER = customer_data_unscaled_df.rename(columns=rename_map)
-
-                # 3. Escalar los datos del cliente 
+                
+                # 1. Escalar los datos del cliente (con mayúsculas)
                 customer_data_scaled_array = scaler.transform(customer_data_unscaled_df_UPPER)
                 
-                # 4. Calcular SHAP con datos ESCALADOS
-                shap_values_array_batch = explainer(customer_data_scaled_array)
                 
-                if shap_values_array_batch.shape[0] == 0:
+                # 2. Calcular SHAP con datos ESCALADOS
+                # explainer() devuelve un objeto Explanation de shape (1, n_features)
+                shap_explanation_batch = explainer(customer_data_scaled_array)
+                
+                if shap_explanation_batch.values.shape[0] == 0:
                     st.error("Error: El explainer devolvió un resultado vacío.")
                 else:
-                    shap_values_customer_array = shap_values_array_batch[0]
-                    base_value = explainer.expected_value
+                    # 3. Obtener la explicación de la primera (y única) fila
+                    shap_expl_customer = shap_explanation_batch[0]
+                    
+                    # 4. REEMPLAZAR los datos escalados (.data) por los NO escalados
+                    shap_expl_customer.data = customer_data_unscaled_series.values
+                    shap_expl_customer.feature_names = customer_data_unscaled_series.index.tolist()
 
                     st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data_unscaled_series['creditscore']:.0f}** y `age` de **{customer_data_unscaled_series['age']:.0f}**:")
 
@@ -457,10 +454,12 @@ with tab5:
                     # --- Gráfico de Fuerza (Force Plot) ---
                     st.write("Gráfico de Fuerza (Versión Estática):")
                     
+                    # 5. Pasar el objeto Explanation modificado a force_plot
                     fig_force = shap.force_plot(
-                        base_value, 
-                        shap_values_customer_array, 
-                        customer_data_unscaled_series, 
+                        shap_expl_customer.base_values, 
+                        shap_expl_customer.values, 
+                        shap_expl_customer.data, 
+                        feature_names=shap_expl_customer.feature_names,
                         matplotlib=True,
                         show=False,
                         text_rotation=0
@@ -482,17 +481,11 @@ with tab5:
                     # --- Gráfico de Cascada (Waterfall Plot) ---
                     st.write("Desglose del impacto (Waterfall):")
                     
-                    shap_explanation_object = shap.Explanation(
-                        values=shap_values_customer_array,
-                        base_values=base_value,
-                        data=customer_data_unscaled_series.values, 
-                        feature_names=customer_data_unscaled_series.index.tolist()
-                    )
-                    
                     if theme == 'dark':
                         plt.style.use('dark_background')
                     
-                    shap.plots.waterfall(shap_explanation_object, max_display=15, show=False) 
+                    # 6. Pasar el objeto Explanation modificado a waterfall_plot
+                    shap.plots.waterfall(shap_expl_customer, max_display=15, show=False) 
                     
                     fig_waterfall = plt.gcf()
                     if theme == 'dark':
