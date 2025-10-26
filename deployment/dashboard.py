@@ -262,22 +262,25 @@ with tab2:
     st.header("Distribución de Features Recientes")
     if not df_kpis.empty:
         col1, col2, col3 = st.columns(3)
-        
+        config_options = {
+                     "width": "stretch"
+                 }
         with col1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad Reciente")
                 fig_age = px.histogram(df_kpis['age'].dropna(), nbins=30)
-                st.plotly_chart(fig_age, width="stretch")
+                st.plotly_chart(fig_age, config=config_options)
             
             if 'creditscore' in df_kpis.columns:
                 st.subheader("Credit Score Reciente")
                 fig_credit = px.histogram(df_kpis['creditscore'].dropna(), nbins=30)
-                st.plotly_chart(fig_credit, width="stretch")
+                st.plotly_chart(fig_credit, config=config_options)
 
             if 'balance' in df_kpis.columns:
                  st.subheader("Saldo Reciente")
+                 
                  fig_balance = px.histogram(df_kpis['balance'].dropna(), nbins=30)
-                 st.plotly_chart(fig_balance, width="stretch")
+                 st.plotly_chart(fig_balance, config=config_options)
 
         with col2:
             if 'geography' in df_kpis.columns:
@@ -308,7 +311,7 @@ with tab2:
             if 'estimatedsalary' in df_kpis.columns:
                  st.subheader("Salario Estimado Reciente")
                  fig_salary = px.histogram(df_kpis['estimatedsalary'].dropna(), nbins=30)
-                 st.plotly_chart(fig_salary, width="stretch")
+                 st.plotly_chart(fig_salary,config=config_options)
     else:
         st.info("No hay datos recientes para mostrar distribuciones.")
 
