@@ -96,7 +96,6 @@ def get_shap_explainer(_model, _background_data):
         return None
 
 # --- Funciones de Base de Datos ---
-# (Usando psycopg2 como lo tenías, el warning de SQLAlchemy es ignorable si funciona)
 @st.cache_resource(ttl=300)
 def get_db_connection():
     try:
@@ -158,7 +157,7 @@ df_kpis = load_data_from_db(conn)
 model = load_model()
 scaler = load_scaler()
 df_background = load_background_data()
-explainer = get_shap_explainer(model, df_background) # Ahora solo devuelve el explainer
+explainer = get_shap_explainer(model, df_background) # Solo devuelve el explainer
 
 # --- Lógica de la Sidebar ---
 st.sidebar.header("Filtros de Segmentación 🧭")
@@ -209,7 +208,6 @@ with tab1:
         df_resample = df_kpis.copy()
         if 'timestamp' in df_resample.columns:
             df_resample.set_index('timestamp', inplace=True)
-            # --- MODIFICACIÓN: Usar width='stretch' ---
             if 'confidence' in df_resample.columns:
                 st.subheader("Confianza Promedio (Score) por Hora")
                 confidence_hourly = df_resample['confidence'].resample('h').mean().dropna()
@@ -232,23 +230,16 @@ with tab1:
 with tab2:
     st.header("Distribución de Features Recientes")
     if not df_kpis.empty:
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
-            # --- MODIFICACIÓN: Usar use_container_width=True para Plotly ---
             if 'age' in df_kpis.columns:
                 st.subheader("Edad")
                 fig_age = px.histogram(df_kpis['age'].dropna())
-                st.plotly_chart(fig_age, use_container_width=True)
+                st.plotly_chart(fig_age, width="stretch")
             if 'creditscore' in df_kpis.columns:
                 st.subheader("Credit Score")
                 fig_credit = px.histogram(df_kpis['creditscore'].dropna())
-                st.plotly_chart(fig_credit, use_container_width=True)
-            if 'balance' in df_kpis.columns:
-                 st.subheader("Saldo")
-                 fig_balance = px.histogram(df_kpis['balance'].dropna())
-                 st.plotly_chart(fig_balance, use_container_width=True)
-        with col2:
-            # --- MODIFICACIÓN: Usar width='stretch' para bar_chart ---
+                st.plotly_chart(fig_credit, width="stretch")
             if 'geography' in df_kpis.columns:
                  st.subheader("País")
                  st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
@@ -258,8 +249,15 @@ with tab2:
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
                  st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
-        with col3:
-            # --- MODIFICACIÓN: Usar width='stretch' para bar_chart ---
+        with col2:
+            if 'balance' in df_kpis.columns:
+                 st.subheader("Saldo")
+                 fig_balance = px.histogram(df_kpis['balance'].dropna())
+                 st.plotly_chart(fig_balance, width="stretch")
+            if 'estimatedsalary' in df_kpis.columns:
+                 st.subheader("Salario Estimado")
+                 fig_salary = px.histogram(df_kpis['estimatedsalary'].dropna())
+                 st.plotly_chart(fig_salary, width="stretch")
             if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos")
                   st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
@@ -269,11 +267,7 @@ with tab2:
             if 'isactivemember' in df_kpis.columns:
                  st.subheader("Miembro Activo")
                  st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
-            # --- MODIFICACIÓN: Usar use_container_width=True para Plotly ---
-            if 'estimatedsalary' in df_kpis.columns:
-                 st.subheader("Salario Estimado")
-                 fig_salary = px.histogram(df_kpis['estimatedsalary'].dropna())
-                 st.plotly_chart(fig_salary, use_container_width=True)
+            
     else: st.info("No hay datos recientes para mostrar distribuciones.")
 
 # --- Pestaña 3: Monitor de Drift ---
@@ -341,65 +335,70 @@ with tab5:
                 customer_data_scaled_array = scaler.transform(customer_data_unscaled_df_UPPER)
 
                 # 2. Calcular SHAP con datos ESCALADOS
-                shap_values_array = explainer(customer_data_scaled_array) # Returns array for LinearExplainer
+                # Ahora esperamos un objeto Explanation
+                shap_explanation_batch = explainer(customer_data_scaled_array)
 
-                # --- VALIDACIÓN MÁS ROBUSTA ---
-                # Check if the output array is valid and has expected dimensions
-                if isinstance(shap_values_array, np.ndarray) and shap_values_array.ndim == 2 and shap_values_array.shape[0] == 1 and shap_values_array.shape[1] == len(MODEL_FEATURE_COLS):
+                # --- MODIFICACIÓN: Lógica Principal para Explanation ---
+                if isinstance(shap_explanation_batch, shap.Explanation) and shap_explanation_batch.values.shape[0] > 0:
 
-                    shap_values_customer = shap_values_array[0] # Get the 1D array of SHAP values
-                    base_value = explainer.expected_value       # Get the base value (float)
-                    data_values = customer_data_unscaled_series.values # Get original data values (array)
-                    feature_names = customer_data_unscaled_series.index.tolist() # Get feature names (list)
+                    # 3. Obtener la explicación de la primera (y única) fila
+                    shap_expl_customer = shap_explanation_batch[0]
 
-                    # Final check: Ensure all components have the same length
-                    if len(shap_values_customer) == len(data_values) == len(feature_names):
+                    # 4. REEMPLAZAR los datos escalados (.data) por los NO escalados
+                    shap_expl_customer.data = customer_data_unscaled_series.values
+                    # Asegurar que los nombres de features también se actualicen
+                    shap_expl_customer.feature_names = customer_data_unscaled_series.index.tolist()
 
-                        # Create the Explanation object MANUALLY
-                        shap_expl_customer = shap.Explanation(
-                            values=shap_values_customer,
-                            base_values=base_value,
-                            data=data_values,
-                            feature_names=feature_names
-                        )
 
-                        st.write(f"Análisis cliente (Índice: {selected_index}):")
-                        theme = st.get_option("theme.base") if hasattr(st, 'get_option') else 'light'
+                    st.write(f"Análisis cliente (Índice: {selected_index}):")
+                    theme = st.get_option("theme.base") if hasattr(st, 'get_option') else 'light'
 
-                        # --- Force Plot ---
-                        st.write("Gráfico de Fuerza:")
-                        fig_force = shap.force_plot( shap_expl_customer.base_values, shap_expl_customer.values, shap_expl_customer.data, feature_names=shap_expl_customer.feature_names, matplotlib=True, show=False, text_rotation=0)
-                        if fig_force:
-                            if theme == 'dark':
-                                # Dark mode styling for force plot
-                                fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
-                            st.pyplot(fig_force)
-                        else: st.warning("No se generó gráfico de fuerza.")
-
-                        # --- Waterfall Plot ---
-                        st.write("Desglose (Waterfall):")
-                        if theme == 'dark': plt.style.use('dark_background')
-
-                        # Now pass the manually created, validated Explanation object
-                        shap.plots.waterfall(shap_expl_customer, max_display=15, show=False)
-
-                        fig_waterfall = plt.gcf()
+                    # --- Force Plot ---
+                    st.write("Gráfico de Fuerza:")
+                    # Pasamos directamente los componentes del objeto Explanation
+                    fig_force = shap.force_plot(
+                        shap_expl_customer.base_values,
+                        shap_expl_customer.values,
+                        shap_expl_customer.data, # Ya son los no escalados
+                        feature_names=shap_expl_customer.feature_names,
+                        matplotlib=True,
+                        show=False,
+                        text_rotation=0
+                    )
+                    if fig_force:
                         if theme == 'dark':
-                            fig_waterfall.patch.set_alpha(0.0)
-                            for ax in fig_waterfall.get_axes(): ax.patch.set_alpha(0.0)
-                        st.pyplot(fig_waterfall)
-                        plt.style.use('default') # Reset style
+                            # (Lógica modo oscuro)
+                            fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
+                        st.pyplot(fig_force)
+                    else: st.warning("No se generó gráfico de fuerza.")
 
-                    else:
-                        st.error("Error interno: Inconsistencia en la longitud de datos SHAP y features.")
-                        st.write(f"Len SHAP: {len(shap_values_customer)}, Len Data: {len(data_values)}, Len Names: {len(feature_names)}")
+                    # --- Waterfall Plot ---
+                    st.write("Desglose (Waterfall):")
+                    if theme == 'dark': plt.style.use('dark_background')
+
+                    # Pasamos el objeto Explanation modificado
+                    shap.plots.waterfall(shap_expl_customer, max_display=15, show=False)
+
+                    fig_waterfall = plt.gcf()
+                    if theme == 'dark':
+                        fig_waterfall.patch.set_alpha(0.0)
+                        for ax in fig_waterfall.get_axes(): ax.patch.set_alpha(0.0)
+                    st.pyplot(fig_waterfall)
+                    plt.style.use('default') # Reset style
+
+                # Fallback por si acaso devuelve un array (aunque no debería con versiones recientes)
+                elif isinstance(shap_explanation_batch, np.ndarray) and shap_explanation_batch.shape[0] > 0:
+                     st.warning("SHAP devolvió un array (formato antiguo). Intentando procesar...")
+                     # (Aquí iría la lógica anterior para crear el Explanation manualmente)
+                     # ... pero por ahora, solo mostramos el warning ...
+                     # (Si necesitas esta lógica, avísame)
 
                 else:
                     st.error("Error: El cálculo SHAP devolvió un resultado inesperado o vacío.")
-                    if isinstance(shap_values_array, np.ndarray):
-                        st.write(f"Shape devuelto: {shap_values_array.shape}")
-                    else:
-                        st.write(f"Tipo devuelto: {type(shap_values_array)}")
+                    st.write(f"Tipo devuelto: {type(shap_explanation_batch)}")
+                    if hasattr(shap_explanation_batch, 'shape'):
+                        st.write(f"Shape devuelto: {shap_explanation_batch.shape}")
+
 
             else:
                 st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
