@@ -267,50 +267,50 @@ with tab2:
                  }
         with col1:
             if 'age' in df_kpis.columns:
-                st.subheader("Edad Reciente")
-                fig_age = px.histogram(df_kpis['age'].dropna(), nbins=30)
+                st.subheader("Edad")
+                fig_age = px.histogram(df_kpis['age'].dropna())
                 st.plotly_chart(fig_age, config=config_options)
             
             if 'creditscore' in df_kpis.columns:
-                st.subheader("Credit Score Reciente")
-                fig_credit = px.histogram(df_kpis['creditscore'].dropna(), nbins=30)
+                st.subheader("Credit Score")
+                fig_credit = px.histogram(df_kpis['creditscore'].dropna())
                 st.plotly_chart(fig_credit, config=config_options)
 
             if 'balance' in df_kpis.columns:
-                 st.subheader("Saldo Reciente")
+                 st.subheader("Saldo")
                  
-                 fig_balance = px.histogram(df_kpis['balance'].dropna(), nbins=30)
+                 fig_balance = px.histogram(df_kpis['balance'].dropna())
                  st.plotly_chart(fig_balance, config=config_options)
 
         with col2:
             if 'geography' in df_kpis.columns:
-                 st.subheader("País Reciente")
+                 st.subheader("País")
                  st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
 
             if 'gender' in df_kpis.columns:
-                 st.subheader("Género Reciente")
+                 st.subheader("Género")
                  st.bar_chart(df_kpis['gender'].value_counts(), width="stretch")
 
             if 'tenure' in df_kpis.columns:
-                 st.subheader("Antigüedad (Tenure) Reciente")
+                 st.subheader("Antigüedad")
                  st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
         
         with col3:
             if 'numofproducts' in df_kpis.columns:
-                  st.subheader("Productos Recientes")
+                  st.subheader("Productos")
                   st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
 
             if 'hascrcard' in df_kpis.columns:
-                 st.subheader("Tiene Tarjeta Crédito Reciente")
+                 st.subheader("Tiene Tarjeta Crédito")
                  st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
 
             if 'isactivemember' in df_kpis.columns:
-                 st.subheader("Miembro Activo Reciente")
+                 st.subheader("Miembro Activo")
                  st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
 
             if 'estimatedsalary' in df_kpis.columns:
-                 st.subheader("Salario Estimado Reciente")
-                 fig_salary = px.histogram(df_kpis['estimatedsalary'].dropna(), nbins=30)
+                 st.subheader("Salario Estimado")
+                 fig_salary = px.histogram(df_kpis['estimatedsalary'].dropna())
                  st.plotly_chart(fig_salary,config=config_options)
     else:
         st.info("No hay datos recientes para mostrar distribuciones.")
@@ -353,7 +353,6 @@ with tab4:
         # y convierte a float, ya que el scaler lo espera.
         df_for_model = df_for_model[MODEL_FEATURE_COLS].astype(float)
 
-        # ---'key' y 'on_select' para interactividad ---
         st.dataframe(
             df_filtered[cols_to_show].head(100),
             key="df_selector", # Clave para acceder a la selección
@@ -373,7 +372,7 @@ with tab5:
     st.subheader("Importancia Global de Features")
     
     try:
-        st.image("deployment/shap_plots/shap_summary.png", width="stretch")
+        st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
     except FileNotFoundError:
         st.error("No se encontró el archivo shap_summary.png")
 
@@ -398,17 +397,15 @@ with tab5:
                 
                 st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data_series['creditscore']:.0f}** y `age` de **{customer_data_series['age']:.0f}**:")
 
-                # --- MODIFICACIÓN: Lógica de Tema Automática ---
-                # 1. Obtener el tema actual de Streamlit
+                # --- Lógica de Tema Automática ---
                 try:
                     theme = st.get_option("theme.base")
                 except AttributeError:
                     theme = 'light'
 
-                # --- 2. Gráfico de Fuerza (Force Plot) ---
+                # --- Gráfico de Fuerza (Force Plot) ---
                 st.write("Gráfico de Fuerza (Versión Estática):")
                 
-                # Genera la figura
                 fig_force = shap.force_plot(
                     shap_values_customer.base_values,
                     shap_values_customer.values,
@@ -419,7 +416,6 @@ with tab5:
                 )
                 
                 if fig_force is not None:
-                    # SI el tema es oscuro, aplica el arreglo manual
                     if theme == 'dark':
                         fig_force.patch.set_alpha(0.0)
                         for ax in fig_force.get_axes():
@@ -428,29 +424,33 @@ with tab5:
                             for spine in ax.spines.values(): spine.set_edgecolor("white")
                             ax.tick_params(axis='x', colors='white')
                             ax.tick_params(axis='y', colors='white')
-                    
-                    # Muestra la figura (modificada o no)
                     st.pyplot(fig_force)
                 else:
                     st.warning("No se pudo generar el gráfico de fuerza.")
-
-                # --- 3. Gráfico de Cascada (Waterfall Plot) ---
+                
+                # --- Gráfico de Cascada (Waterfall Plot) ---
                 st.write("Desglose del impacto (Waterfall):")
                 
-                # SI el tema es oscuro, aplica el estilo
+                # 1. Establece el estilo SI es oscuro
                 if theme == 'dark':
-                    plt.style.use('dark_background') 
+                    plt.style.use('dark_background')
 
-                fig_waterfall, ax_waterfall = plt.subplots()
+                # 2. DEJA QUE SHAP CREE EL GRÁFICO
+                shap.plots.waterfall(shap_values_customer, max_display=15, show=False) 
+                
+                # 3. CAPTURA la figura que SHAP acaba de crear
+                fig_waterfall = plt.gcf()
 
+                # 4. Aplica la transparencia SI es oscuro
                 if theme == 'dark':
                     fig_waterfall.patch.set_alpha(0.0)
-                    ax_waterfall.patch.set_alpha(0.0)
+                    for ax in fig_waterfall.get_axes():
+                        ax.patch.set_alpha(0.0)
                 
-                shap.plots.waterfall(shap_values_customer, max_display=15, show=False, ax=ax_waterfall) 
+                # 5. Muestra la figura modificada
                 st.pyplot(fig_waterfall)
                 
-                # Resetear el estilo de Matplotlib
+                # 6. Resetea el estilo
                 plt.style.use('default')
                 
             else:
