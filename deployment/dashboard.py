@@ -335,39 +335,48 @@ with tab5:
                 customer_data_scaled_array = scaler.transform(customer_data_unscaled_df_UPPER)
 
                 # 2. Calcular SHAP con datos ESCALADOS
-                # Ahora esperamos un objeto Explanation
-                shap_explanation_batch = explainer(customer_data_scaled_array)
+                shap_values_output = explainer(customer_data_scaled_array) # Could be array or Explanation
 
-                # --- MODIFICACIÓN: Lógica Principal para Explanation ---
-                if isinstance(shap_explanation_batch, shap.Explanation) and shap_explanation_batch.values.shape[0] > 0:
+                # 3. Extraer componentes necesarios
+                base_value = explainer.expected_value
+                shap_values_customer_array = None
 
-                    # 3. Obtener la explicación de la primera (y única) fila
-                    shap_expl_customer = shap_explanation_batch[0]
+                if isinstance(shap_values_output, np.ndarray):
+                    if shap_values_output.shape[0] > 0:
+                        shap_values_customer_array = shap_values_output[0]
+                elif isinstance(shap_values_output, shap.Explanation):
+                     if shap_values_output.values.shape[0] > 0:
+                         shap_values_customer_array = shap_values_output.values[0] # Extract the numpy array
 
-                    # 4. REEMPLAZAR los datos escalados (.data) por los NO escalados
-                    shap_expl_customer.data = customer_data_unscaled_series.values
-                    # Asegurar que los nombres de features también se actualicen
-                    shap_expl_customer.feature_names = customer_data_unscaled_series.index.tolist()
+                # --- MODIFICACIÓN: Crear el Explanation final DESPUÉS de extraer valores ---
+                if shap_values_customer_array is not None and len(shap_values_customer_array) == len(customer_data_unscaled_series):
 
+                    # Crear el objeto Explanation final con los datos NO escalados
+                    shap_expl_customer_final = shap.Explanation(
+                        values=shap_values_customer_array,
+                        base_values=base_value,
+                        data=customer_data_unscaled_series.values, # Use unscaled data
+                        feature_names=customer_data_unscaled_series.index.tolist()
+                    )
 
                     st.write(f"Análisis cliente (Índice: {selected_index}):")
                     theme = st.get_option("theme.base") if hasattr(st, 'get_option') else 'light'
 
                     # --- Force Plot ---
                     st.write("Gráfico de Fuerza:")
-                    # Pasamos directamente los componentes del objeto Explanation
+                    # Pass the final Explanation object components
                     fig_force = shap.force_plot(
-                        shap_expl_customer.base_values,
-                        shap_expl_customer.values,
-                        shap_expl_customer.data, # Ya son los no escalados
-                        feature_names=shap_expl_customer.feature_names,
+                        shap_expl_customer_final.base_values,
+                        shap_expl_customer_final.values,
+                        shap_expl_customer_final.data, # Unscaled data
+                        feature_names=shap_expl_customer_final.feature_names,
                         matplotlib=True,
                         show=False,
                         text_rotation=0
                     )
                     if fig_force:
                         if theme == 'dark':
-                            # (Lógica modo oscuro)
+                            # (Dark mode styling)
                             fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
                         st.pyplot(fig_force)
                     else: st.warning("No se generó gráfico de fuerza.")
@@ -376,8 +385,8 @@ with tab5:
                     st.write("Desglose (Waterfall):")
                     if theme == 'dark': plt.style.use('dark_background')
 
-                    # Pasamos el objeto Explanation modificado
-                    shap.plots.waterfall(shap_expl_customer, max_display=15, show=False)
+                    # Pass the final Explanation object
+                    shap.plots.waterfall(shap_expl_customer_final, max_display=15, show=False)
 
                     fig_waterfall = plt.gcf()
                     if theme == 'dark':
@@ -386,18 +395,12 @@ with tab5:
                     st.pyplot(fig_waterfall)
                     plt.style.use('default') # Reset style
 
-                # Fallback por si acaso devuelve un array (aunque no debería con versiones recientes)
-                elif isinstance(shap_explanation_batch, np.ndarray) and shap_explanation_batch.shape[0] > 0:
-                     st.warning("SHAP devolvió un array (formato antiguo). Intentando procesar...")
-                     # (Aquí iría la lógica anterior para crear el Explanation manualmente)
-                     # ... pero por ahora, solo mostramos el warning ...
-                     # (Si necesitas esta lógica, avísame)
-
                 else:
-                    st.error("Error: El cálculo SHAP devolvió un resultado inesperado o vacío.")
-                    st.write(f"Tipo devuelto: {type(shap_explanation_batch)}")
-                    if hasattr(shap_explanation_batch, 'shape'):
-                        st.write(f"Shape devuelto: {shap_explanation_batch.shape}")
+                    st.error("Error: El cálculo SHAP devolvió un resultado inesperado, vacío o con dimensiones incorrectas.")
+                    st.write(f"Tipo devuelto por explainer: {type(shap_values_output)}")
+                    if hasattr(shap_values_output, 'shape'): st.write(f"Shape devuelto: {shap_values_output.shape}")
+                    if shap_values_customer_array is not None: st.write(f"Longitud array SHAP: {len(shap_values_customer_array)}")
+                    st.write(f"Longitud datos cliente: {len(customer_data_unscaled_series)}")
 
 
             else:
