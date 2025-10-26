@@ -86,36 +86,22 @@ def generate_drift_report(df_current, df_reference, feature_columns, target_col,
     if prediction_col not in df_current.columns:
         print(f"Error: Columna '{prediction_col}' no encontrada.")
         return None
-    if target_col not in df_reference.columns:
-        print(f"Error: Columna target '{target_col}' no encontrada.")
-        return None
 
-    # Renombrar ANTES de definir el mapeo
-    print(f"Renombrando '{prediction_col}' a '{target_col}' en df_current...")
-    df_current_renamed = df_current.copy()
-    df_current_renamed.rename(columns={prediction_col: target_col}, inplace=True)
+    column_mapping = ColumnMapping(prediction=prediction_col)
 
-    column_mapping = ColumnMapping(target=target_col, prediction=target_col)
-
-    available_features_current = [col for col in feature_columns if col in df_current_renamed.columns]
+    available_features_current = [col for col in feature_columns if col in df_current.columns]
     available_features_reference = [col for col in feature_columns if col in df_reference.columns]
 
-    # Excluir target de DataDriftPreset
-    features_for_data_drift = [
-        col for col in list(set(available_features_current) & set(available_features_reference))
-        if col != target_col
-    ]
+    features_for_data_drift = list(set(available_features_current) & set(available_features_reference))
+    if not features_for_data_drift:
+        print("Advertencia: No hay features comunes entre datasets.")
+        return None
 
-    metrics_to_run = [TargetDriftPreset()]
-    if features_for_data_drift:
-        metrics_to_run.insert(0, DataDriftPreset(columns=features_for_data_drift))
-    else:
-        print("Advertencia: No hay features comunes (excl. target) para DataDriftPreset.")
+    # --- Solo DataDriftPreset ---
+    report = Report(metrics=[DataDriftPreset(columns=features_for_data_drift)])
+    report.run(current_data=df_current, reference_data=df_reference, column_mapping=column_mapping)
 
-    report = Report(metrics=metrics_to_run)
-    report.run(current_data=df_current_renamed, reference_data=df_reference, column_mapping=column_mapping)
-
-    # Guardar HTML
+    # Guardar reporte HTML
     os.makedirs(os.path.dirname(output_path_html), exist_ok=True)
     report.save_html(output_path_html)
     print(f"Reporte HTML guardado en: {output_path_html}")
@@ -124,14 +110,13 @@ def generate_drift_report(df_current, df_reference, feature_columns, target_col,
     try:
         report_dict = report.as_dict()
         data_drift_metrics = report_dict.get('data_drift', {}).get('data', {}).get('metrics', {})
-        target_drift_metrics = report_dict.get('target_drift', {}).get('data', {}).get('metrics', {})
         drifted_list = data_drift_metrics.get('drifted_columns', [])
-        if drifted_list is None: drifted_list = []
+        if drifted_list is None:
+            drifted_list = []
 
         results = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(), # Añade timestamp
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "data_drift_detected": data_drift_metrics.get('drift_detected', False),
-            "target_drift_detected": target_drift_metrics.get('drift_detected', False),
             "drifted_features_count": data_drift_metrics.get('number_of_drifted_columns', 0),
             "drifted_features_list": drifted_list
         }
@@ -139,6 +124,7 @@ def generate_drift_report(df_current, df_reference, feature_columns, target_col,
     except Exception as e:
         print(f"Error al extraer resultados: {e}")
         return None
+
 
 # --- Bloque __main__ 
 if __name__ == "__main__":
