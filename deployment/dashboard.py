@@ -304,7 +304,7 @@ with tab4:
 # --- Pestaña 5: Explicabilidad (SHAP) ---
 with tab5:
     st.header("🕵️‍♂️ Explicabilidad del Modelo (SHAP)")
-    
+
     # --- 1. GRÁFICO GENERAL (Estático desde PNG) ---
     st.subheader("Importancia Global de Features")
     try:
@@ -316,7 +316,8 @@ with tab5:
 
     # --- 2. GRÁFICO ESPECÍFICO (Filtrado) ---
     st.subheader("Análisis de Cliente Específico (Filtrado)")
-    
+
+    # Comprueba que scaler, explainer estén listos
     if explainer is None or scaler is None:
         st.error("Recursos del modelo, scaler o SHAP no cargados. Revisa las rutas de los archivos .pkl.")
     elif "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
@@ -324,36 +325,37 @@ with tab5:
     else:
         try:
             selected_index = st.session_state.df_selector.selection["rows"][0]
-            
+
             if not df_for_model.empty and selected_index < len(df_for_model):
-                
+
                 # Datos NO escalados (para mostrar)
                 customer_data_unscaled_df = df_for_model.iloc[[selected_index]]
                 customer_data_unscaled_series = df_for_model.iloc[selected_index]
-                
+
                 # --- Renombrar para el scaler ---
                 rename_map = {col: col.capitalize() for col in customer_data_unscaled_df.columns}
                 rename_map.update({'creditscore': 'CreditScore', 'hascrcard': 'HasCrCard', 'isactivemember': 'IsActiveMember', 'estimatedsalary': 'EstimatedSalary', 'geography_france': 'Geography_France', 'geography_germany': 'Geography_Germany', 'geography_spain': 'Geography_Spain', 'gender_female': 'Gender_Female', 'gender_male': 'Gender_Male', 'numofproducts_1': 'NumOfProducts_1', 'numofproducts_2': 'NumOfProducts_2', 'numofproducts_3': 'NumOfProducts_3', 'numofproducts_4': 'NumOfProducts_4'})
                 customer_data_unscaled_df_UPPER = customer_data_unscaled_df.rename(columns=rename_map)
-                
+
                 # 1. Escalar los datos del cliente
                 customer_data_scaled_array = scaler.transform(customer_data_unscaled_df_UPPER)
-                
-                # 2. Calcular SHAP con datos ESCALADOS
-                shap_values_array = explainer(customer_data_scaled_array)
-                
-                # --- MODIFICACIÓN: Comprobaciones más estrictas ---
-                if shap_values_array.shape[0] > 0 and shap_values_array.shape[1] == len(customer_data_unscaled_series):
-                    
-                    shap_values_customer = shap_values_array[0] # Array 1D de valores SHAP
-                    base_value = explainer.expected_value       # Valor base (float)
-                    data_values = customer_data_unscaled_series.values # Array 1D de datos originales
-                    feature_names = customer_data_unscaled_series.index.tolist() # Lista de nombres
 
-                    # Doble comprobación de longitudes
+                # 2. Calcular SHAP con datos ESCALADOS
+                shap_values_array = explainer(customer_data_scaled_array) # Returns array for LinearExplainer
+
+                # --- VALIDACIÓN MÁS ROBUSTA ---
+                # Check if the output array is valid and has expected dimensions
+                if isinstance(shap_values_array, np.ndarray) and shap_values_array.ndim == 2 and shap_values_array.shape[0] == 1 and shap_values_array.shape[1] == len(MODEL_FEATURE_COLS):
+
+                    shap_values_customer = shap_values_array[0] # Get the 1D array of SHAP values
+                    base_value = explainer.expected_value       # Get the base value (float)
+                    data_values = customer_data_unscaled_series.values # Get original data values (array)
+                    feature_names = customer_data_unscaled_series.index.tolist() # Get feature names (list)
+
+                    # Final check: Ensure all components have the same length
                     if len(shap_values_customer) == len(data_values) == len(feature_names):
-                        
-                        # Crear objeto Explanation manualmente
+
+                        # Create the Explanation object MANUALLY
                         shap_expl_customer = shap.Explanation(
                             values=shap_values_customer,
                             base_values=base_value,
@@ -369,7 +371,7 @@ with tab5:
                         fig_force = shap.force_plot( shap_expl_customer.base_values, shap_expl_customer.values, shap_expl_customer.data, feature_names=shap_expl_customer.feature_names, matplotlib=True, show=False, text_rotation=0)
                         if fig_force:
                             if theme == 'dark':
-                                # (Lógica modo oscuro)
+                                # Dark mode styling for force plot
                                 fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
                             st.pyplot(fig_force)
                         else: st.warning("No se generó gráfico de fuerza.")
@@ -377,31 +379,30 @@ with tab5:
                         # --- Waterfall Plot ---
                         st.write("Desglose (Waterfall):")
                         if theme == 'dark': plt.style.use('dark_background')
-                        
-                        # --- MODIFICACIÓN: Quitado max_display temporalmente ---
-                        shap.plots.waterfall(shap_expl_customer, show=False) 
-                        
+
+                        # Now pass the manually created, validated Explanation object
+                        shap.plots.waterfall(shap_expl_customer, max_display=15, show=False)
+
                         fig_waterfall = plt.gcf()
                         if theme == 'dark':
                             fig_waterfall.patch.set_alpha(0.0)
                             for ax in fig_waterfall.get_axes(): ax.patch.set_alpha(0.0)
-                        
                         st.pyplot(fig_waterfall)
-                        plt.style.use('default')
+                        plt.style.use('default') # Reset style
 
                     else:
-                        st.error("Error interno: Las longitudes de los datos SHAP no coinciden. Revisa las features.")
-                        st.write(f"Len SHAP values: {len(shap_values_customer)}")
-                        st.write(f"Len data values: {len(data_values)}")
-                        st.write(f"Len feature names: {len(feature_names)}")
+                        st.error("Error interno: Inconsistencia en la longitud de datos SHAP y features.")
+                        st.write(f"Len SHAP: {len(shap_values_customer)}, Len Data: {len(data_values)}, Len Names: {len(feature_names)}")
 
-                else: 
+                else:
                     st.error("Error: El cálculo SHAP devolvió un resultado inesperado o vacío.")
-                    st.write(f"Shape devuelto por explainer: {shap_values_array.shape}")
-            
+                    if isinstance(shap_values_array, np.ndarray):
+                        st.write(f"Shape devuelto: {shap_values_array.shape}")
+                    else:
+                        st.write(f"Tipo devuelto: {type(shap_values_array)}")
+
             else:
                 st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
 
         except Exception as e:
             st.error(f"Error al generar el gráfico SHAP para el cliente: {e}")
-            st.write("Asegúrate de que los datos del cliente coinciden con el formato del modelo.")
