@@ -22,6 +22,7 @@ DB_CONNECTION_STRING = st.secrets.get("SUPABASE_CONNECTION_STRING")
 
 # --- Constantes para SHAP ---
 MODEL_PATH = "src/model/best_model.pkl"
+SCALER_PATH = "src/model/scaler.pkl"
 BACKGROUND_DATA_PATH = "deployment/data/X_train_final_linear.csv" 
 
 # Lista de features EXACTAS que espera tu modelo (de training.ipynb)
@@ -48,7 +49,21 @@ def load_model():
     except Exception as e:
         st.error(f"Error al cargar el modelo: {e}")
         return None
-
+    
+@st.cache_resource
+def load_scaler():
+    """Carga el scaler .pkl entrenado."""
+    try:
+        with open(SCALER_PATH, 'rb') as f:
+            scaler = pickle.load(f)
+        return scaler
+    except FileNotFoundError:
+        st.error(f"Error: No se encontró el archivo del scaler en {SCALER_PATH}")
+        return None
+    except Exception as e:
+        st.error(f"Error al cargar el scaler: {e}")
+        return None
+    
 @st.cache_resource
 def load_background_data():
     """Carga los datos de fondo (X_train) para SHAP."""
@@ -158,6 +173,7 @@ df_kpis = load_data_from_db(conn)
 
 # --- Carga de recursos SHAP ---
 model = load_model()
+scaler = load_scaler()
 df_background = load_background_data()
 explainer, shap_values_global, df_background_global = get_shap_explainer(model, df_background)
 
@@ -370,7 +386,6 @@ with tab5:
     
     # --- 1. GRÁFICO GENERAL (Estático desde PNG) ---
     st.subheader("Importancia Global de Features")
-    
     try:
         st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
     except FileNotFoundError:
@@ -381,77 +396,99 @@ with tab5:
     # --- 2. GRÁFICO ESPECÍFICO (Filtrado) ---
     st.subheader("Análisis de Cliente Específico (Filtrado)")
     
-    if "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
+    # Comprueba que scaler, explainer estén listos
+    if explainer is None or scaler is None:
+        st.error("Recursos del modelo, scaler o SHAP no cargados. Revisa las rutas de los archivos .pkl.")
+    
+    # Comprueba si se ha seleccionado un cliente
+    elif "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
         st.info("Por favor, selecciona un cliente en la pestaña '🗃️ Clientes Filtrados' para un análisis detallado.")
     
+    # Si todo está listo, sigue
     else:
         try:
             selected_index = st.session_state.df_selector.selection["rows"][0]
             
             if not df_for_model.empty and selected_index < len(df_for_model):
-                customer_data_df = df_for_model.iloc[[selected_index]]
-                customer_data_series = df_for_model.iloc[selected_index]
                 
-                shap_values_batch = explainer(customer_data_df)
-                shap_values_customer = shap_values_batch[0]
+                # Datos NO escalados
+                customer_data_unscaled_df = df_for_model.iloc[[selected_index]]
+                customer_data_unscaled_series = df_for_model.iloc[selected_index]
                 
-                st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data_series['creditscore']:.0f}** y `age` de **{customer_data_series['age']:.0f}**:")
+                # --- Escalar los datos del cliente ---
+                customer_data_scaled_array = scaler.transform(customer_data_unscaled_df)
+                
+                # Calcular SHAP con datos ESCALADOS
+                shap_values_array_batch = explainer(customer_data_scaled_array)
+                
+                # Comprueba si el resultado está vacío 
+                if shap_values_array_batch.shape[0] > 0:
+                    
+                    # Obtener el array 1D de valores SHAP
+                    shap_values_customer_array = shap_values_array_batch[0]
+                    
+                    # Obtener el valor base manualmente
+                    base_value = explainer.expected_value
 
-                # --- Lógica de Tema Automática ---
-                try:
-                    theme = st.get_option("theme.base")
-                except AttributeError:
-                    theme = 'light'
+                    st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data_unscaled_series['creditscore']:.0f}** y `age` de **{customer_data_unscaled_series['age']:.0f}**:")
 
-                # --- Gráfico de Fuerza (Force Plot) ---
-                st.write("Gráfico de Fuerza (Versión Estática):")
-                
-                fig_force = shap.force_plot(
-                    shap_values_customer.base_values,
-                    shap_values_customer.values,
-                    customer_data_series,
-                    matplotlib=True,
-                    show=False,
-                    text_rotation=0
-                )
-                
-                if fig_force is not None:
+                    # Lógica de Tema Automática
+                    try:
+                        theme = st.get_option("theme.base")
+                    except AttributeError:
+                        theme = 'light'
+
+                    # --- Gráfico de Fuerza (Force Plot) ---
+                    st.write("Gráfico de Fuerza (Versión Estática):")
+                    
+                    fig_force = shap.force_plot(
+                        base_value, 
+                        shap_values_customer_array, 
+                        customer_data_unscaled_series, # Usar datos no escalados para mostrar
+                        matplotlib=True,
+                        show=False,
+                        text_rotation=0
+                    )
+                    
+                    if fig_force is not None:
+                        if theme == 'dark':
+                            fig_force.patch.set_alpha(0.0)
+                            for ax in fig_force.get_axes():
+                                ax.patch.set_alpha(0.0)
+                                for text in ax.findobj(plt.Text): text.set_color("white")
+                                for spine in ax.spines.values(): spine.set_edgecolor("white")
+                                ax.tick_params(axis='x', colors='white')
+                                ax.tick_params(axis='y', colors='white')
+                        st.pyplot(fig_force)
+                    else:
+                        st.warning("No se pudo generar el gráfico de fuerza.")
+                    
+                    # --- Gráfico de Cascada (Waterfall Plot) ---
+                    st.write("Desglose del impacto (Waterfall):")
+                    
+                    shap_explanation_object = shap.Explanation(
+                        values=shap_values_customer_array,
+                        base_values=base_value,
+                        data=customer_data_unscaled_series.values, 
+                        feature_names=customer_data_unscaled_series.index.tolist()
+                    )
+                    
                     if theme == 'dark':
-                        fig_force.patch.set_alpha(0.0)
-                        for ax in fig_force.get_axes():
+                        plt.style.use('dark_background')
+                    
+                    shap.plots.waterfall(shap_explanation_object, max_display=15, show=False) 
+                    fig_waterfall = plt.gcf()
+                    
+                    if theme == 'dark':
+                        fig_waterfall.patch.set_alpha(0.0)
+                        for ax in fig_waterfall.get_axes():
                             ax.patch.set_alpha(0.0)
-                            for text in ax.findobj(plt.Text): text.set_color("white")
-                            for spine in ax.spines.values(): spine.set_edgecolor("white")
-                            ax.tick_params(axis='x', colors='white')
-                            ax.tick_params(axis='y', colors='white')
-                    st.pyplot(fig_force)
+                    
+                    st.pyplot(fig_waterfall)
+                    plt.style.use('default')
+                
                 else:
-                    st.warning("No se pudo generar el gráfico de fuerza.")
-                
-                # --- Gráfico de Cascada (Waterfall Plot) ---
-                st.write("Desglose del impacto (Waterfall):")
-                
-                # 1. Establece el estilo SI es oscuro
-                if theme == 'dark':
-                    plt.style.use('dark_background')
-
-                # 2. DEJA QUE SHAP CREE EL GRÁFICO
-                shap.plots.waterfall(shap_values_customer, max_display=15, show=False) 
-                
-                # 3. CAPTURA la figura que SHAP acaba de crear
-                fig_waterfall = plt.gcf()
-
-                # 4. Aplica la transparencia SI es oscuro
-                if theme == 'dark':
-                    fig_waterfall.patch.set_alpha(0.0)
-                    for ax in fig_waterfall.get_axes():
-                        ax.patch.set_alpha(0.0)
-                
-                # 5. Muestra la figura modificada
-                st.pyplot(fig_waterfall)
-                
-                # 6. Resetea el estilo
-                plt.style.use('default')
+                    st.error("Error: El explainer devolvió un resultado vacío. Comprueba los datos.")
                 
             else:
                 st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
