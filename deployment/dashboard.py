@@ -261,32 +261,54 @@ with tab1:
 with tab2:
     st.header("Distribución de Features Recientes")
     if not df_kpis.empty:
-        col_feat1, col_feat2 = st.columns(2)
-        with col_feat1:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad Reciente")
                 fig_age = px.histogram(df_kpis['age'].dropna(), nbins=30)
-                st.plotly_chart(fig_age, width='stretch')
+                st.plotly_chart(fig_age, width="stretch")
+            
+            if 'creditscore' in df_kpis.columns:
+                st.subheader("Credit Score Reciente")
+                fig_credit = px.histogram(df_kpis['creditscore'].dropna(), nbins=30)
+                st.plotly_chart(fig_credit, width="stretch")
 
-            if 'geography' in df_kpis.columns:
-                 st.subheader("País Reciente")
-                 st.bar_chart(df_kpis['geography'].value_counts(), width='stretch')
-            if 'hascrcard' in df_kpis.columns:
-                 st.subheader("Tiene Tarjeta Crédito Reciente")
-                 st.bar_chart(df_kpis['hascrcard'].value_counts(), width='stretch')
-        
-        with col_feat2:
-             if 'balance' in df_kpis.columns:
+            if 'balance' in df_kpis.columns:
                  st.subheader("Saldo Reciente")
                  fig_balance = px.histogram(df_kpis['balance'].dropna(), nbins=30)
-                 st.plotly_chart(fig_balance, width='stretch')
+                 st.plotly_chart(fig_balance, width="stretch")
 
-             if 'numofproducts' in df_kpis.columns:
+        with col2:
+            if 'geography' in df_kpis.columns:
+                 st.subheader("País Reciente")
+                 st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
+
+            if 'gender' in df_kpis.columns:
+                 st.subheader("Género Reciente")
+                 st.bar_chart(df_kpis['gender'].value_counts(), width="stretch")
+
+            if 'tenure' in df_kpis.columns:
+                 st.subheader("Antigüedad (Tenure) Reciente")
+                 st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
+        
+        with col3:
+            if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos Recientes")
-                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width='stretch')
-             if 'isactivemember' in df_kpis.columns:
+                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
+
+            if 'hascrcard' in df_kpis.columns:
+                 st.subheader("Tiene Tarjeta Crédito Reciente")
+                 st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
+
+            if 'isactivemember' in df_kpis.columns:
                  st.subheader("Miembro Activo Reciente")
-                 st.bar_chart(df_kpis['isactivemember'].value_counts(), width='stretch')
+                 st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
+
+            if 'estimatedsalary' in df_kpis.columns:
+                 st.subheader("Salario Estimado Reciente")
+                 fig_salary = px.histogram(df_kpis['estimatedsalary'].dropna(), nbins=30)
+                 st.plotly_chart(fig_salary, width="stretch")
     else:
         st.info("No hay datos recientes para mostrar distribuciones.")
 
@@ -354,49 +376,79 @@ with tab5:
 
     st.divider()
 
-    # --- 2. GRÁFICO ESPECÍFICO (Interactivo) ---
+    # --- 2. GRÁFICO ESPECÍFICO (Filtrado) ---
     st.subheader("Análisis de Cliente Específico (Filtrado)")
     
-    # Revisa si se ha seleccionado algo en el dataframe de la Tab 4
     if "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
         st.info("Por favor, selecciona un cliente en la pestaña '🗃️ Clientes Filtrados' para un análisis detallado.")
     
     else:
         try:
-            # Obtiene el índice de la fila seleccionada
             selected_index = st.session_state.df_selector.selection["rows"][0]
             
-            # Obtiene los datos de esa fila
             if not df_for_model.empty and selected_index < len(df_for_model):
                 customer_data_df = df_for_model.iloc[[selected_index]]
                 customer_data_series = df_for_model.iloc[selected_index]
                 
-                # Calcula los valores SHAP solo para este cliente
                 shap_values_batch = explainer(customer_data_df)
                 shap_values_customer = shap_values_batch[0]
                 
                 st.write(f"Análisis para el cliente (Índice: {selected_index}) con `creditscore` de **{customer_data_series['creditscore']:.0f}** y `age` de **{customer_data_series['age']:.0f}**:")
 
-                # Muestra el gráfico force_plot interactivo
-                st_shap(shap.force_plot(shap_values_customer.base_values,
-                                        shap_values_customer.values,
-                                        customer_data_series))
+                # --- MODIFICACIÓN: Lógica de Tema Automática ---
+                # 1. Obtener el tema actual de Streamlit
+                try:
+                    theme = st.get_option("theme.base")
+                except AttributeError:
+                    theme = 'light'
+
+                # --- 2. Gráfico de Fuerza (Force Plot) ---
+                st.write("Gráfico de Fuerza (Versión Estática):")
                 
-                # Muestra el gráfico waterfall estático
+                # Genera la figura
+                fig_force = shap.force_plot(
+                    shap_values_customer.base_values,
+                    shap_values_customer.values,
+                    customer_data_series,
+                    matplotlib=True,
+                    show=False,
+                    text_rotation=0
+                )
+                
+                if fig_force is not None:
+                    # SI el tema es oscuro, aplica el arreglo manual
+                    if theme == 'dark':
+                        fig_force.patch.set_alpha(0.0)
+                        for ax in fig_force.get_axes():
+                            ax.patch.set_alpha(0.0)
+                            for text in ax.findobj(plt.Text): text.set_color("white")
+                            for spine in ax.spines.values(): spine.set_edgecolor("white")
+                            ax.tick_params(axis='x', colors='white')
+                            ax.tick_params(axis='y', colors='white')
+                    
+                    # Muestra la figura (modificada o no)
+                    st.pyplot(fig_force)
+                else:
+                    st.warning("No se pudo generar el gráfico de fuerza.")
+
+                # --- 3. Gráfico de Cascada (Waterfall Plot) ---
                 st.write("Desglose del impacto (Waterfall):")
                 
-                # --- Añadir estilo para modo oscuro ---
-                plt.style.use('dark_background') # Texto claro
+                # SI el tema es oscuro, aplica el estilo
+                if theme == 'dark':
+                    plt.style.use('dark_background') 
+
                 fig_waterfall, ax_waterfall = plt.subplots()
-                fig_waterfall.patch.set_alpha(0.0) # Fondo de figura transparente
-                ax_waterfall.patch.set_alpha(0.0) # Fondo de ejes transparente
-                # ---------------------------------------------------
+
+                if theme == 'dark':
+                    fig_waterfall.patch.set_alpha(0.0)
+                    ax_waterfall.patch.set_alpha(0.0)
                 
-                # Usamos el objeto Explanation directamente
-                shap.plots.waterfall(shap_values_customer, max_display=15, show=False) 
+                shap.plots.waterfall(shap_values_customer, max_display=15, show=False, ax=ax_waterfall) 
                 st.pyplot(fig_waterfall)
                 
-                plt.style.use('default') # Resetea el estilo
+                # Resetear el estilo de Matplotlib
+                plt.style.use('default')
                 
             else:
                 st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
