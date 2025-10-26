@@ -178,22 +178,27 @@ explainer = get_shap_explainer(model, df_background)
 
 # --- Leer estado del drift y mostrar alerta ---
 drift_status = get_drift_status(STATUS_JSON_URL)
-if drift_status and (drift_status.get("data_drift_detected") or drift_status.get("target_drift_detected")):
-    alert_message = "🚨 **¡Alerta de Drift Detectado!** "
-    details = []
-    if drift_status.get("target_drift_detected"): details.append("Target Drift")
-    if drift_status.get("data_drift_detected"):
-        count = drift_status.get("drifted_features_count", 0)
-        lista = drift_status.get("drifted_features_list", [])
-        # Asegurarse que lista sea iterable
-        lista_str = ", ".join(lista) if isinstance(lista, list) else "N/A"
-        details.append(f"Data Drift ({count} features: {lista_str})")
-    alert_message += " | ".join(details)
-    alert_message += f" (Reporte: {drift_status.get('timestamp', 'N/A')})"
 
-    # Usar st.expander para la alerta con botón
-    with st.expander(alert_message, expanded=True):
-        st.warning("Se detectó un cambio significativo. Revisa el reporte en la pestaña 'Drift'.")
+if drift_status is not None:
+    data_drift = drift_status.get("data_drift_detected", False)
+    target_drift = drift_status.get("target_drift_detected", False)
+    if data_drift or target_drift:
+        alert_message = "🚨 **¡Alerta de Drift Detectado!** "
+        details = []
+        if target_drift:
+            details.append("Target Drift")
+        if data_drift:
+            count = drift_status.get("drifted_features_count", 0)
+            lista = drift_status.get("drifted_features_list", [])
+            lista_str = ", ".join(lista) if isinstance(lista, list) else "N/A"
+            details.append(f"Data Drift ({count} features: {lista_str})")
+        alert_message += " | ".join(details)
+        alert_message += f" (Reporte: {drift_status.get('timestamp', 'N/A')})"
+        st.warning(alert_message)
+    else:
+        st.info("✅ No se detectó drift en los datos ni en el target.")
+else:
+    st.warning("⚠️ No se pudo obtener el estado del drift.")
 
 # --- Lógica de la Sidebar ---
 st.sidebar.header("Filtros de Segmentación 🧭")
@@ -223,10 +228,12 @@ st.sidebar.info("Use filtros para explorar.")
 
 # --- Definición de Pestañas ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📈 KPIs", "📊 Distribuciones",
-    "🔬 Drift", "🗃️ Filtrados", 
-    "🕵️‍♂️ SHAP"])
-
+    "📈 KPIs y Tendencias",
+    "📊 Distribuciones Recientes",
+    "🔬 Monitor de Drift",
+    "🗃️ Clientes Filtrados",
+    "🕵️‍♂️ Explicabilidad (SHAP)"
+])
 # --- Pestaña 1: KPIs ---
 with tab1:
     st.header("Métricas Globales Recientes")
