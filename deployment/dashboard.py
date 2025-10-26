@@ -304,76 +304,104 @@ with tab4:
 # --- Pestaña 5: Explicabilidad (SHAP) ---
 with tab5:
     st.header("🕵️‍♂️ Explicabilidad del Modelo (SHAP)")
+    
+    # --- 1. GRÁFICO GENERAL (Estático desde PNG) ---
     st.subheader("Importancia Global de Features")
-    try: st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
-    except FileNotFoundError: st.error("No se encontró el archivo shap_summary.png")
-    st.divider()
-    st.subheader("Análisis de Cliente Específico (Filtrado)")
+    try:
+        st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
+    except FileNotFoundError:
+        st.error("No se encontró el archivo shap_summary.png")
 
+    st.divider()
+
+    # --- 2. GRÁFICO ESPECÍFICO (Filtrado) ---
+    st.subheader("Análisis de Cliente Específico (Filtrado)")
+    
     if explainer is None or scaler is None:
-        st.error("Recursos SHAP no cargados.")
+        st.error("Recursos del modelo, scaler o SHAP no cargados. Revisa las rutas de los archivos .pkl.")
     elif "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
-        st.info("Selecciona un cliente en 'Clientes Filtrados'.")
+        st.info("Por favor, selecciona un cliente en la pestaña '🗃️ Clientes Filtrados' para un análisis detallado.")
     else:
         try:
             selected_index = st.session_state.df_selector.selection["rows"][0]
+            
             if not df_for_model.empty and selected_index < len(df_for_model):
+                
+                # Datos NO escalados (para mostrar)
                 customer_data_unscaled_df = df_for_model.iloc[[selected_index]]
                 customer_data_unscaled_series = df_for_model.iloc[selected_index]
-
-                # Renombrar a mayúsculas para el scaler
+                
+                # --- Renombrar para el scaler ---
                 rename_map = {col: col.capitalize() for col in customer_data_unscaled_df.columns}
-                rename_map.update({ 'creditscore': 'CreditScore', 'hascrcard': 'HasCrCard', 'isactivemember': 'IsActiveMember', 'estimatedsalary': 'EstimatedSalary', 'geography_france': 'Geography_France', 'geography_germany': 'Geography_Germany', 'geography_spain': 'Geography_Spain', 'gender_female': 'Gender_Female', 'gender_male': 'Gender_Male', 'numofproducts_1': 'NumOfProducts_1', 'numofproducts_2': 'NumOfProducts_2', 'numofproducts_3': 'NumOfProducts_3', 'numofproducts_4': 'NumOfProducts_4'})
+                rename_map.update({'creditscore': 'CreditScore', 'hascrcard': 'HasCrCard', 'isactivemember': 'IsActiveMember', 'estimatedsalary': 'EstimatedSalary', 'geography_france': 'Geography_France', 'geography_germany': 'Geography_Germany', 'geography_spain': 'Geography_Spain', 'gender_female': 'Gender_Female', 'gender_male': 'Gender_Male', 'numofproducts_1': 'NumOfProducts_1', 'numofproducts_2': 'NumOfProducts_2', 'numofproducts_3': 'NumOfProducts_3', 'numofproducts_4': 'NumOfProducts_4'})
                 customer_data_unscaled_df_UPPER = customer_data_unscaled_df.rename(columns=rename_map)
-
-                # Escalar
+                
+                # 1. Escalar los datos del cliente
                 customer_data_scaled_array = scaler.transform(customer_data_unscaled_df_UPPER)
-
-                # Calcular SHAP (devuelve array)
+                
+                # 2. Calcular SHAP con datos ESCALADOS
                 shap_values_array = explainer(customer_data_scaled_array)
+                
+                # --- MODIFICACIÓN: Comprobaciones más estrictas ---
+                if shap_values_array.shape[0] > 0 and shap_values_array.shape[1] == len(customer_data_unscaled_series):
+                    
+                    shap_values_customer = shap_values_array[0] # Array 1D de valores SHAP
+                    base_value = explainer.expected_value       # Valor base (float)
+                    data_values = customer_data_unscaled_series.values # Array 1D de datos originales
+                    feature_names = customer_data_unscaled_series.index.tolist() # Lista de nombres
 
-                if shap_values_array.shape[0] > 0:
-                    shap_values_customer = shap_values_array[0]
-                    base_value = explainer.expected_value
+                    # Doble comprobación de longitudes
+                    if len(shap_values_customer) == len(data_values) == len(feature_names):
+                        
+                        # Crear objeto Explanation manualmente
+                        shap_expl_customer = shap.Explanation(
+                            values=shap_values_customer,
+                            base_values=base_value,
+                            data=data_values,
+                            feature_names=feature_names
+                        )
 
-                    # Crear objeto Explanation manualmente
-                    shap_expl_customer = shap.Explanation(
-                        values=shap_values_customer,
-                        base_values=base_value,
-                        data=customer_data_unscaled_series.values, # No escalados
-                        feature_names=customer_data_unscaled_series.index.tolist()
-                    )
+                        st.write(f"Análisis cliente (Índice: {selected_index}):")
+                        theme = st.get_option("theme.base") if hasattr(st, 'get_option') else 'light'
 
-                    st.write(f"Análisis cliente (Índice: {selected_index}):")
-                    theme = st.get_option("theme.base") if hasattr(st, 'get_option') else 'light'
+                        # --- Force Plot ---
+                        st.write("Gráfico de Fuerza:")
+                        fig_force = shap.force_plot( shap_expl_customer.base_values, shap_expl_customer.values, shap_expl_customer.data, feature_names=shap_expl_customer.feature_names, matplotlib=True, show=False, text_rotation=0)
+                        if fig_force:
+                            if theme == 'dark':
+                                # (Lógica modo oscuro)
+                                fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
+                            st.pyplot(fig_force)
+                        else: st.warning("No se generó gráfico de fuerza.")
 
-                    # --- Force Plot ---
-                    st.write("Gráfico de Fuerza:")
-                    fig_force = shap.force_plot( shap_expl_customer.base_values, shap_expl_customer.values, shap_expl_customer.data, feature_names=shap_expl_customer.feature_names, matplotlib=True, show=False, text_rotation=0)
-                    if fig_force:
+                        # --- Waterfall Plot ---
+                        st.write("Desglose (Waterfall):")
+                        if theme == 'dark': plt.style.use('dark_background')
+                        
+                        # --- MODIFICACIÓN: Quitado max_display temporalmente ---
+                        shap.plots.waterfall(shap_expl_customer, show=False) 
+                        
+                        fig_waterfall = plt.gcf()
                         if theme == 'dark':
-                            fig_force.patch.set_alpha(0.0)
-                            for ax in fig_force.get_axes():
-                                ax.patch.set_alpha(0.0)
-                                for text in ax.findobj(plt.Text): text.set_color("white")
-                                for spine in ax.spines.values(): spine.set_edgecolor("white")
-                                ax.tick_params(axis='x', colors='white')
-                                ax.tick_params(axis='y', colors='white')
-                        st.pyplot(fig_force)
-                    else: st.warning("No se generó gráfico de fuerza.")
+                            fig_waterfall.patch.set_alpha(0.0)
+                            for ax in fig_waterfall.get_axes(): ax.patch.set_alpha(0.0)
+                        
+                        st.pyplot(fig_waterfall)
+                        plt.style.use('default')
 
-                    # --- Waterfall Plot ---
-                    st.write("Desglose (Waterfall):")
-                    if theme == 'dark': plt.style.use('dark_background')
-                    shap.plots.waterfall(shap_expl_customer, max_display=15, show=False)
-                    fig_waterfall = plt.gcf()
-                    if theme == 'dark':
-                        fig_waterfall.patch.set_alpha(0.0)
-                        for ax in fig_waterfall.get_axes(): ax.patch.set_alpha(0.0)
-                    st.pyplot(fig_waterfall)
-                    plt.style.use('default')
+                    else:
+                        st.error("Error interno: Las longitudes de los datos SHAP no coinciden. Revisa las features.")
+                        st.write(f"Len SHAP values: {len(shap_values_customer)}")
+                        st.write(f"Len data values: {len(data_values)}")
+                        st.write(f"Len feature names: {len(feature_names)}")
 
-                else: st.error("Cálculo SHAP vacío.")
-            else: st.warning("No se cargaron datos del cliente.")
+                else: 
+                    st.error("Error: El cálculo SHAP devolvió un resultado inesperado o vacío.")
+                    st.write(f"Shape devuelto por explainer: {shap_values_array.shape}")
+            
+            else:
+                st.warning("No se pudieron cargar los datos del cliente seleccionado para SHAP.")
+
         except Exception as e:
-            st.error(f"Error al generar gráfico SHAP: {e}")
+            st.error(f"Error al generar el gráfico SHAP para el cliente: {e}")
+            st.write("Asegúrate de que los datos del cliente coinciden con el formato del modelo.")
