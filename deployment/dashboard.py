@@ -255,6 +255,10 @@ with tab2:
                  st.subheader("Saldo")
                  fig = px.histogram(df_kpis['balance'].dropna())
                  st.plotly_chart(fig, use_container_width=True)
+            if 'estimatedsalary' in df_kpis.columns:
+                 st.subheader("Salario Est.")
+                 fig = px.histogram(df_kpis['estimatedsalary'].dropna())
+                 st.plotly_chart(fig, use_container_width=True)
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
                  st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
@@ -264,10 +268,6 @@ with tab2:
             if 'hascrcard' in df_kpis.columns:
                  st.subheader("Tarjeta Créd.")
                  st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
-            if 'estimatedsalary' in df_kpis.columns:
-                 st.subheader("Salario Est.")
-                 fig = px.histogram(df_kpis['estimatedsalary'].dropna())
-                 st.plotly_chart(fig, use_container_width=True)
     else: st.info("Sin datos para distribuciones.")
 
 # --- Pestaña 3: Monitor de Drift ---
@@ -325,20 +325,20 @@ with tab5:
                 # Escalar
                 cust_scaled_array = scaler.transform(cust_unscaled_df_UPPER)
 
-                # Calcular SHAP (debería devolver Explanation)
+                # Calcular SHAP 
                 shap_output = explainer(cust_scaled_array)
 
-                # --- CORRECCIÓN FINAL: Manejar Explanation como caso principal ---
+                # --- Manejar Explanation como caso principal ---
                 shap_expl_customer = None # Inicializar
 
                 # Si es un objeto Explanation y no está vacío
                 if isinstance(shap_output, shap.Explanation) and shap_output.values.shape[0] > 0 and shap_output.values.shape[1] == len(MODEL_FEATURE_COLS):
-                    shap_expl_customer = shap_output[0] # Obtener la explicación de la fila 0
+                    shap_expl_customer = shap_output[0]
                     # Reemplazar datos escalados por no escalados para el display
                     shap_expl_customer.data = cust_unscaled_series.values
                     shap_expl_customer.feature_names = cust_unscaled_series.index.tolist()
 
-                # Fallback: Si devuelve un array (versión antigua)
+                # Si devuelve un array 
                 elif isinstance(shap_output, np.ndarray) and shap_output.shape[0] > 0 and shap_output.shape[1] == len(MODEL_FEATURE_COLS):
                      st.warning("SHAP devolvió un array (formato antiguo). Creando Explanation manualmente.")
                      shap_values_customer = shap_output[0]
@@ -358,12 +358,37 @@ with tab5:
                     st.caption("Muestra qué factores empujan (rojo) o frenan (azul) la predicción para este cliente.")
                     plt.close('all') # Asegura que no haya figuras previas abiertas
                     fig_force = shap.force_plot(shap_expl_customer.base_values, shap_expl_customer.values, shap_expl_customer.data, feature_names=shap_expl_customer.feature_names, matplotlib=True, show=False, text_rotation=0)
+
                     if fig_force:
-                        if theme == 'dark': # Aplicar estilo oscuro
-                            fig_force.patch.set_alpha(0.0); [ax.patch.set_alpha(0.0) for ax in fig_force.get_axes()]; [text.set_color("white") for ax in fig_force.get_axes() for text in ax.findobj(plt.Text)]; [spine.set_edgecolor("white") for ax in fig_force.get_axes() for spine in ax.spines.values()]; [ax.tick_params(axis='x', colors='white') for ax in fig_force.get_axes()]; [ax.tick_params(axis='y', colors='white') for ax in fig_force.get_axes()]
+                        text_color = "white" if theme == 'dark' else "black" # Color base
+                        
+                        # Aplica estilos base y oculta etiquetas
+                        if theme == 'dark':
+                            fig_force.patch.set_alpha(0.0)
+                        
+                        for ax in fig_force.get_axes():
+                            if theme == 'dark':
+                                ax.patch.set_alpha(0.0) # Fondo de ejes transparente (oscuro)
+                            else:
+                                ax.patch.set_alpha(1.0) # Fondo de ejes opaco (claro)
+                                
+                            for text in ax.findobj(plt.Text):
+                                # Oculta etiquetas con '=' que no sean f(x) o base value
+                                if '=' in text.get_text() and "f(x)" not in text.get_text() and "base value" not in text.get_text():
+                                    text.set_visible(False)
+                                else: # Colorea el resto del texto
+                                     text.set_color(text_color)
+                            
+                            # Colorea ejes y ticks
+                            for spine in ax.spines.values(): spine.set_edgecolor(text_color)
+                            ax.tick_params(axis='x', colors=text_color)
+                            ax.tick_params(axis='y', colors=text_color)
+
                         st.pyplot(fig_force)
                     else: st.warning("No se generó gráfico de fuerza.")
-                    st.markdown("---")
+
+                    st.markdown("---") # Separador
+
                     # --- Waterfall Plot ---
                     st.markdown("#### 🌊 Desglose del Impacto (Waterfall)")
                     st.caption("Detalla la contribución exacta de cada feature a la predicción final.")
