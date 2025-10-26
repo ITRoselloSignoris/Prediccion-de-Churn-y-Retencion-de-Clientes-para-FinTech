@@ -8,6 +8,9 @@ import pickle
 import shap
 shap.initjs() 
 import matplotlib.pyplot as plt
+import requests 
+import json    
+import datetime
 
 st.set_page_config(
     page_title="Dashboard de Monitoreo de Churn",
@@ -17,14 +20,16 @@ st.title("📊 Dashboard de Monitoreo del Modelo de Churn")
 
 # --- Constantes ---
 REPORT_URL = "https://itrosellosignoris.github.io/Prediccion-de-Churn-y-Retencion-de-Clientes-para-FinTech/drift_report.html"
+# --- URL del archivo JSON de estado ---
+STATUS_JSON_URL = "https://itrosellosignoris.github.io/Prediccion-de-Churn-y-Retencion-de-Clientes-para-FinTech/drift_status.json" # Asegúrate que esta URL sea correcta
 DB_CONNECTION_STRING = st.secrets.get("SUPABASE_CONNECTION_STRING")
 
-# --- PATHS para SHAP ---
+# --- Constantes para SHAP ---
 MODEL_PATH = "src/model/best_model.pkl"
 SCALER_PATH = "src/model/scaler.pkl"
 BACKGROUND_DATA_PATH = "deployment/data/X_train_final_linear.csv"
 
-# Lista de features EXACTAS que espera el modelo
+# Lista de features EXACTAS que espera tu modelo
 MODEL_FEATURE_COLS = [
     'creditscore', 'age', 'tenure', 'balance',
     'hascrcard', 'isactivemember', 'estimatedsalary',
@@ -85,10 +90,7 @@ def get_shap_explainer(_model, _background_data):
     if _model is None or _background_data.empty:
         return None
     try:
-        st.info("Creando explicador SHAP...")
-        # LinearExplainer necesita los datos escalados como fondo
         explainer = shap.LinearExplainer(_model, _background_data)
-        st.success("Explicador SHAP listo.")
         return explainer
     except Exception as e:
         st.error(f"Error al crear el explicador SHAP: {e}")
@@ -149,6 +151,22 @@ def load_data_from_db(_conn):
         st.error(f"Error al cargar o procesar datos desde la base de datos: {e}")
         return pd.DataFrame()
 
+# --- Función para leer el estado del drift ---
+@st.cache_data(ttl=60) # Cachear por 1 minuto para no sobrecargar
+def get_drift_status(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status() # Lanza error si no es 200 OK
+        # Intenta decodificar ignorando errores de caracteres
+        status = json.loads(response.content.decode('utf-8', errors='ignore'))
+        return status
+    except requests.exceptions.RequestException as e:
+        st.warning(f"No se pudo obtener el estado del drift desde {url}: {e}")
+        return None
+    except json.JSONDecodeError:
+        st.warning(f"Error al parsear el JSON de estado de drift desde {url}")
+        return None
+
 # --- Carga Principal de Datos y Recursos ---
 conn = get_db_connection()
 df_kpis = load_data_from_db(conn)
@@ -156,7 +174,26 @@ df_kpis = load_data_from_db(conn)
 model = load_model()
 scaler = load_scaler()
 df_background = load_background_data()
-explainer = get_shap_explainer(model, df_background) # Solo devuelve el explainer
+explainer = get_shap_explainer(model, df_background)
+
+# --- Leer estado del drift y mostrar alerta ---
+drift_status = get_drift_status(STATUS_JSON_URL)
+if drift_status and (drift_status.get("data_drift_detected") or drift_status.get("target_drift_detected")):
+    alert_message = "🚨 **¡Alerta de Drift Detectado!** "
+    details = []
+    if drift_status.get("target_drift_detected"): details.append("Target Drift")
+    if drift_status.get("data_drift_detected"):
+        count = drift_status.get("drifted_features_count", 0)
+        lista = drift_status.get("drifted_features_list", [])
+        # Asegurarse que lista sea iterable
+        lista_str = ", ".join(lista) if isinstance(lista, list) else "N/A"
+        details.append(f"Data Drift ({count} features: {lista_str})")
+    alert_message += " | ".join(details)
+    alert_message += f" (Reporte: {drift_status.get('timestamp', 'N/A')})"
+
+    # Usar st.expander para la alerta con botón
+    with st.expander(alert_message, expanded=True):
+        st.warning("Se detectó un cambio significativo. Revisa el reporte en la pestaña 'Drift'.")
 
 # --- Lógica de la Sidebar ---
 st.sidebar.header("Filtros de Segmentación 🧭")
@@ -186,12 +223,10 @@ st.sidebar.info("Use filtros para explorar.")
 
 # --- Definición de Pestañas ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📈 KPIs y Tendencias",
-    "📊 Distribuciones Recientes",
-    "🔬 Monitor de Drift",
-    "🗃️ Clientes Filtrados",
-    "🕵️‍♂️ Explicabilidad (SHAP)"
-])
+    "📈 KPIs", "📊 Distribuciones",
+    "🔬 Drift", "🗃️ Filtrados", 
+    "🕵️‍♂️ SHAP"])
+
 # --- Pestaña 1: KPIs ---
 with tab1:
     st.header("Métricas Globales Recientes")
@@ -231,7 +266,7 @@ with tab1:
 with tab2:
     st.header("Distribución Features Recientes")
     if not df_kpis.empty:
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns(2) 
         with col1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad")
@@ -270,6 +305,7 @@ with tab2:
                  st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
     else: st.info("Sin datos para distribuciones.")
 
+
 # --- Pestaña 3: Monitor de Drift ---
 with tab3:
     st.header("Reporte Data Drift")
@@ -278,14 +314,14 @@ with tab3:
     except Exception as e: st.error(f"No se cargó reporte: {e}"); st.warning(f"URL: {REPORT_URL}")
 
 # --- Pestaña 4: Clientes Filtrados ---
-df_for_model = pd.DataFrame() 
+df_for_model = pd.DataFrame() # Debe estar fuera del 'with' para ser accesible en tab5
 with tab4:
     st.header("Muestra Clientes Filtrados")
     st.info("Selecciona fila para análisis SHAP.")
     if conn is None: st.error("Sin conexión BD.")
     elif not df_filtered.empty:
         cols_show = ['timestamp', 'prediction', 'confidence', 'creditscore', 'age', 'tenure', 'balance', 'numofproducts', 'hascrcard', 'isactivemember', 'estimatedsalary', 'geography', 'gender']
-        # Preparar datos para SHAP 
+        # Preparar datos para SHAP
         df_for_model = df_filtered.copy()
         for col in MODEL_FEATURE_COLS:
             if col not in df_for_model.columns: df_for_model[col] = False
@@ -383,6 +419,7 @@ with tab5:
                             for spine in ax.spines.values(): spine.set_edgecolor(text_color)
                             ax.tick_params(axis='x', colors=text_color)
                             ax.tick_params(axis='y', colors=text_color)
+                        # --- FIN MODIFICACIÓN ---
 
                         st.pyplot(fig_force)
                     else: st.warning("No se generó gráfico de fuerza.")
