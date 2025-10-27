@@ -346,7 +346,7 @@ with tab5:
     st.subheader("Importancia Global")
     st.caption("Observamos la importancia global de las features según SHAP.")
     try:
-        st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
+        st.image("deployment/shap_plots/shap_summary.png", width="stretch")
     except FileNotFoundError:
         st.error("No se encontró shap_summary.png")
     st.divider()
