@@ -287,13 +287,13 @@ with tab2:
                 st.plotly_chart(fig, config = config_options)
             if 'geography' in df_kpis.columns:
                  st.subheader("País")
-                 st.bar_chart(df_kpis['geography'].value_counts(), config = config_options)
+                 st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
             if 'gender' in df_kpis.columns:
                  st.subheader("Género")
-                 st.bar_chart(df_kpis['gender'].value_counts(), config = config_options)
+                 st.bar_chart(df_kpis['gender'].value_counts(), width="stretch")
             if 'isactivemember' in df_kpis.columns:
                  st.subheader("Es Miembro Activo")
-                 st.bar_chart(df_kpis['isactivemember'].value_counts(), config = config_options)
+                 st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
         with col2:
             if 'balance' in df_kpis.columns:
                  st.subheader("Saldo")
@@ -305,13 +305,13 @@ with tab2:
                  st.plotly_chart(fig, config = config_options)
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
-                 st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), config = config_options)
+                 st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
             if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos")
-                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), config = config_options)
+                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
             if 'hascrcard' in df_kpis.columns:
                  st.subheader("Posesión de Tarjeta Crédito")
-                 st.bar_chart(df_kpis['hascrcard'].value_counts(), config = config_options)
+                 st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
     else: st.info("Sin datos para distribuciones.")
 
 
