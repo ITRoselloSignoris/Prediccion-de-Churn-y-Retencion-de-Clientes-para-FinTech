@@ -110,7 +110,7 @@ def generate_drift_report(df_current, df_reference, feature_columns, prediction_
         return None
 
     # Solo DataDriftPreset
-    report = Report(metrics=[DataDriftPreset(columns=features_for_data_drift, drift_share_threshold=0.8)])
+    report = Report(metrics=[DataDriftPreset(columns=features_for_data_drift)])
     report.run(current_data=df_current, reference_data=df_reference, column_mapping=column_mapping)
 
     # Guardar HTML
