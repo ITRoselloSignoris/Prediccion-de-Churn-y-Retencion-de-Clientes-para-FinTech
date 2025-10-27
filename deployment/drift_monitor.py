@@ -11,8 +11,7 @@ DB_CONNECTION_STRING = os.environ.get("SUPABASE_CONNECTION_STRING")
 HISTORICAL_DATA_PATH = "deployment/data/historical_data.csv"
 OUTPUT_REPORT_PATH = "public/drift_report.html"
 OUTPUT_STATUS_PATH = "public/drift_status.json"
-NUM_RECENT_PREDICTIONS = 19  # Para demo, usar pocas filas
-DEMO_MODE = True  # Activa una ligera modificación artificial para mostrar drift
+NUM_RECENT_PREDICTIONS = 5000
 
 FEATURE_COLUMNS_TO_MONITOR = [
     'creditscore', 'age', 'tenure', 'balance',
@@ -111,7 +110,7 @@ def generate_drift_report(df_current, df_reference, feature_columns, prediction_
         return None
 
     # Solo DataDriftPreset
-    report = Report(metrics=[DataDriftPreset(columns=features_for_data_drift)])
+    report = Report(metrics=[DataDriftPreset(columns=features_for_data_drift, drift_share_threshold=0.8)])
     report.run(current_data=df_current, reference_data=df_reference, column_mapping=column_mapping)
 
     # Guardar HTML
@@ -119,16 +118,21 @@ def generate_drift_report(df_current, df_reference, feature_columns, prediction_
     report.save_html(output_path_html)
     print(f"Reporte HTML guardado en: {output_path_html}")
 
-    # Extraer resultados
+    # ✅ Extraer resultados reales del drift (idénticos a los del HTML)
     try:
-        report_dict = report.as_dict()
-        data_drift_metrics = report_dict.get('data_drift', {}).get('data', {}).get('metrics', {})
-        drifted_list = data_drift_metrics.get('drifted_columns', []) or []
+        metrics = report._inner_suite.context.metric_results
+        drift_metrics = [m for m in metrics.values() if m.metric_id.name == "DataDriftPreset"]
+
+        if not drift_metrics:
+            print("No se encontraron métricas de drift en el reporte.")
+            return None
+
+        drift_result = drift_metrics[0].result
         results = {
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "data_drift_detected": data_drift_metrics.get('drift_detected', False),
-            "drifted_features_count": data_drift_metrics.get('number_of_drifted_columns', 0),
-            "drifted_features_list": drifted_list
+            "data_drift_detected": drift_result.dataset_drift,
+            "drifted_features_count": drift_result.number_of_drifted_columns,
+            "drifted_features_list": drift_result.drifted_columns
         }
         return results
     except Exception as e:
@@ -158,12 +162,6 @@ if __name__ == "__main__":
 
     if not df_recent.empty and not df_hist.empty:
         prediction_col_lower = PREDICTION_COLUMN_NAME.lower()
-
-        # 🧪 Modo demo: simular pequeño drift
-        if DEMO_MODE:
-            df_hist = df_hist.sample(n=min(len(df_recent), len(df_hist)), random_state=42)
-            df_recent['balance'] = df_recent['balance'] * 1.2
-            df_recent['age'] = df_recent['age'] + 3
 
         if prediction_col_lower not in df_recent.columns:
             print(f"Error: Columna '{prediction_col_lower}' no encontrada en datos recientes.")
