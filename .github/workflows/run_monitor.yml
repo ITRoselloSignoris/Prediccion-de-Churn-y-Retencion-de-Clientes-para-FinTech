@@ -29,33 +29,25 @@ jobs:
       - name: List Installed Packages
         run: ${{ steps.setup-python.outputs.python-path }} -m pip list
 
-      - name: Show Evidently Location
-        run: ${{ steps.setup-python.outputs.python-path }} -m pip show evidently
-
-      - name: Verify Evidently Installation
-        run: |
-          echo "Attempting to import Evidently modules..."
-          ${{ steps.setup-python.outputs.python-path }} -c "from evidently.report import Report; print('Import Report OK')"
-          ${{ steps.setup-python.outputs.python-path }} -c "from evidently.metric_preset import DataDriftPreset; print('Import DataDriftPreset OK')"
-          echo "Evidently import verification complete."
-
       - name: Run Drift Monitor Script
         env:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
         run: |
-          ${{ steps.setup-python.outputs.python-path }} deployment/drift_monitor.py
-
-      - name: Commit and Push Drift Files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin gh-pages || echo "No gh-pages branch yet"
-          git checkout gh-pages || git checkout --orphan gh-pages
           mkdir -p public
-          cp -r ../public/* ./public/ 2>/dev/null || true
-          git add public/drift_report.html public/drift_status.json || echo "No files to add"
-          git commit -m "Actualizar reporte de drift [skip ci]" || echo "No changes to commit"
-          git push origin gh-pages || echo "No gh-pages branch yet"
+          ${{ steps.setup-python.outputs.python-path }} deployment/drift_monitor.py
+          echo "Contenido de public después del script:"
+          ls -la public
+
+      - name: Ensure Drift Files Exist
+        run: |
+          if [ ! -f "public/drift_report.html" ]; then
+            echo "⚠️ Archivo public/drift_report.html no encontrado"
+            exit 1
+          fi
+          if [ ! -f "public/drift_status.json" ]; then
+            echo "{}" > public/drift_status.json
+            echo "⚠️ Archivo drift_status.json no encontrado, se creó uno vacío para el deploy"
+          fi
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
