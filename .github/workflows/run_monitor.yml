@@ -21,11 +21,9 @@ jobs:
         with:
           python-version: '3.11'
 
-      
       - name: Install Dependencies from file
         run: |
           ${{ steps.setup-python.outputs.python-path }} -m pip install --upgrade pip
-          # Instalar usando el archivo específico
           ${{ steps.setup-python.outputs.python-path }} -m pip install -r deployment/requirements_monitor.txt
     
       - name: List Installed Packages
@@ -33,9 +31,6 @@ jobs:
 
       - name: Show Evidently Location
         run: ${{ steps.setup-python.outputs.python-path }} -m pip show evidently
-
-      - name: Show Python Path
-        run: ${{ steps.setup-python.outputs.python-path }} -c "import sys; print(sys.path)"
 
       - name: Verify Evidently Installation
         run: |
@@ -49,6 +44,18 @@ jobs:
           SUPABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_CONNECTION_STRING }}
         run: |
           ${{ steps.setup-python.outputs.python-path }} deployment/drift_monitor.py
+
+      - name: Commit and Push Drift Files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages || echo "No gh-pages branch yet"
+          git checkout gh-pages || git checkout --orphan gh-pages
+          mkdir -p public
+          cp -r ../public/* ./public/ 2>/dev/null || true
+          git add public/drift_report.html public/drift_status.json || echo "No files to add"
+          git commit -m "Actualizar reporte de drift [skip ci]" || echo "No changes to commit"
+          git push origin gh-pages || echo "No gh-pages branch yet"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
