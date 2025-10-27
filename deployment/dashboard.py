@@ -274,43 +274,44 @@ with tab2:
     st.header("Distribución Features Recientes")
     st.caption("Observamos la distribución de las features en las últimas predicciones.")
     if not df_kpis.empty:
+        config_options = {"width": "stretch"}
         col1, col2 = st.columns(2) 
         with col1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad")
                 fig = px.histogram(df_kpis['age'].dropna(), nbins=30)
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig, config = config_options)
             if 'creditscore' in df_kpis.columns:
                 st.subheader("Credit Score")
                 fig = px.histogram(df_kpis['creditscore'].dropna(), nbins=30)
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig, config = config_options)
             if 'geography' in df_kpis.columns:
                  st.subheader("País")
-                 st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
+                 st.bar_chart(df_kpis['geography'].value_counts(), config = config_options)
             if 'gender' in df_kpis.columns:
                  st.subheader("Género")
-                 st.bar_chart(df_kpis['gender'].value_counts(), width="stretch")
+                 st.bar_chart(df_kpis['gender'].value_counts(), config = config_options)
             if 'isactivemember' in df_kpis.columns:
                  st.subheader("Es Miembro Activo")
-                 st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
+                 st.bar_chart(df_kpis['isactivemember'].value_counts(), config = config_options)
         with col2:
             if 'balance' in df_kpis.columns:
                  st.subheader("Saldo")
                  fig = px.histogram(df_kpis['balance'].dropna(), nbins=30)
-                 st.plotly_chart(fig, width="stretch")
+                 st.plotly_chart(fig, config = config_options)
             if 'estimatedsalary' in df_kpis.columns:
                  st.subheader("Salario Estimado")
                  fig = px.histogram(df_kpis['estimatedsalary'].dropna(), nbins=30)
-                 st.plotly_chart(fig, width="stretch")
+                 st.plotly_chart(fig, config = config_options)
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
-                 st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
+                 st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), config = config_options)
             if 'numofproducts' in df_kpis.columns:
                   st.subheader("Productos")
-                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
+                  st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), config = config_options)
             if 'hascrcard' in df_kpis.columns:
                  st.subheader("Posesión de Tarjeta Crédito")
-                 st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
+                 st.bar_chart(df_kpis['hascrcard'].value_counts(), config = config_options)
     else: st.info("Sin datos para distribuciones.")
 
 
