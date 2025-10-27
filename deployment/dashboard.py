@@ -196,7 +196,7 @@ if drift_status is not None:
         alert_message += f" (Reporte: {drift_status.get('timestamp', 'N/A')})"
         st.warning(alert_message)
     else:
-        st.info("✅ No se detectó drift en los datos ni en el target.")
+        st.info("✅ No se detectó drift en los datos.")
 else:
     st.warning("⚠️ No se pudo obtener el estado del drift.")
 
@@ -272,17 +272,18 @@ with tab1:
 # --- Pestaña 2: Distribuciones ---
 with tab2:
     st.header("Distribución Features Recientes")
+    st.caption("Observamos la distribución de las features en las últimas predicciones.")
     if not df_kpis.empty:
         col1, col2 = st.columns(2) 
         with col1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad")
-                fig = px.histogram(df_kpis['age'].dropna())
-                st.plotly_chart(fig, use_container_width=True)
+                fig = px.histogram(df_kpis['age'].dropna(), netbins=30)
+                st.plotly_chart(fig, width="stretch")
             if 'creditscore' in df_kpis.columns:
                 st.subheader("Credit Score")
-                fig = px.histogram(df_kpis['creditscore'].dropna())
-                st.plotly_chart(fig, use_container_width=True)
+                fig = px.histogram(df_kpis['creditscore'].dropna(), netbins=30)
+                st.plotly_chart(fig, width="stretch")
             if 'geography' in df_kpis.columns:
                  st.subheader("País")
                  st.bar_chart(df_kpis['geography'].value_counts(), width="stretch")
@@ -290,17 +291,17 @@ with tab2:
                  st.subheader("Género")
                  st.bar_chart(df_kpis['gender'].value_counts(), width="stretch")
             if 'isactivemember' in df_kpis.columns:
-                 st.subheader("Miembro Activo")
+                 st.subheader("Es Miembro Activo")
                  st.bar_chart(df_kpis['isactivemember'].value_counts(), width="stretch")
         with col2:
             if 'balance' in df_kpis.columns:
                  st.subheader("Saldo")
-                 fig = px.histogram(df_kpis['balance'].dropna())
-                 st.plotly_chart(fig, use_container_width=True)
+                 fig = px.histogram(df_kpis['balance'].dropna(), netbins=30)
+                 st.plotly_chart(fig, width="stretch")
             if 'estimatedsalary' in df_kpis.columns:
-                 st.subheader("Salario Est.")
-                 fig = px.histogram(df_kpis['estimatedsalary'].dropna())
-                 st.plotly_chart(fig, use_container_width=True)
+                 st.subheader("Salario Estimado")
+                 fig = px.histogram(df_kpis['estimatedsalary'].dropna(), netbins=30)
+                 st.plotly_chart(fig, width="stretch")
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
                  st.bar_chart(df_kpis['tenure'].value_counts().sort_index(), width="stretch")
@@ -308,7 +309,7 @@ with tab2:
                   st.subheader("Productos")
                   st.bar_chart(df_kpis['numofproducts'].value_counts().sort_index(), width="stretch")
             if 'hascrcard' in df_kpis.columns:
-                 st.subheader("Tarjeta Créd.")
+                 st.subheader("Posesión de Tarjeta Crédito")
                  st.bar_chart(df_kpis['hascrcard'].value_counts(), width="stretch")
     else: st.info("Sin datos para distribuciones.")
 
@@ -316,6 +317,7 @@ with tab2:
 # --- Pestaña 3: Monitor de Drift ---
 with tab3:
     st.header("Reporte Data Drift")
+    st.caption("Observamos el reporte detallado de drift generado automáticamente.")
     st.markdown(f"[Ver Reporte]({REPORT_URL})")
     try: st.components.v1.iframe(REPORT_URL, height=1000, scrolling=True)
     except Exception as e: st.error(f"No se cargó reporte: {e}"); st.warning(f"URL: {REPORT_URL}")
@@ -341,6 +343,7 @@ with tab4:
 with tab5:
     st.header("🕵️‍♂️ Explicabilidad del Modelo (SHAP)")
     st.subheader("Importancia Global")
+    st.caption("Observamos la importancia global de las features según SHAP.")
     try:
         st.image("deployment/shap_plots/shap_summary.png", use_container_width=True)
     except FileNotFoundError:
@@ -351,7 +354,7 @@ with tab5:
     if explainer is None or scaler is None:
         st.error("Recursos SHAP no cargados.")
     elif "df_selector" not in st.session_state or not st.session_state.df_selector.selection["rows"]:
-        st.info("Selecciona cliente en 'Filtrados'.")
+        st.info("Selecciona cliente en 'Clientes Filtrados'.")
     else:
         try:
             selected_index = st.session_state.df_selector.selection["rows"][0]
@@ -426,7 +429,6 @@ with tab5:
                             for spine in ax.spines.values(): spine.set_edgecolor(text_color)
                             ax.tick_params(axis='x', colors=text_color)
                             ax.tick_params(axis='y', colors=text_color)
-                        # --- FIN MODIFICACIÓN ---
 
                         st.pyplot(fig_force)
                     else: st.warning("No se generó gráfico de fuerza.")
