@@ -94,11 +94,10 @@ def load_reference_data(file_path, target_col_name_ref):
 
 
 # --- Generación del reporte de drift (SOLO DATA DRIFT) ---
-def generate_drift_report(df_current, df_reference, feature_columns, output_path_html): # Ya no necesita prediction_col si no está en feature_columns
+def generate_drift_report(df_current, df_reference, feature_columns, output_path_html):
     print("Generando reporte de Data Drift...")
 
-    # No se necesita mapeo de columnas si solo usamos DataDriftPreset en features
-    column_mapping = ColumnMapping() # Puede estar vacío o especificar otras columnas si las hubiera
+    column_mapping = ColumnMapping()
 
     available_features_current = [col for col in feature_columns if col in df_current.columns]
     available_features_reference = [col for col in feature_columns if col in df_reference.columns]
@@ -108,16 +107,15 @@ def generate_drift_report(df_current, df_reference, feature_columns, output_path
     # Asegurarse que 'prediction' NO esté en la lista para DataDriftPreset
     if PREDICTION_COLUMN_NAME.lower() in features_for_data_drift:
         features_for_data_drift.remove(PREDICTION_COLUMN_NAME.lower())
-    # Asegurarse que 'exited' NO esté en la lista para DataDriftPreset
+    # Asegurarse que 'exited' NO esté en la lista para DataDriftPreset 
     if TARGET_COLUMN_NAME.lower() in features_for_data_drift:
          features_for_data_drift.remove(TARGET_COLUMN_NAME.lower())
-
 
     if not features_for_data_drift:
         print("Advertencia: No hay features comunes (excluyendo target/prediction) entre datasets.")
         return None # No se puede generar reporte sin features
 
-    print(f"Features para DataDriftPreset: {features_for_data_drift}") # Log para ver qué se usa
+    print(f"Features para DataDriftPreset: {features_for_data_drift}")
 
     # Solo DataDriftPreset para las features
     metrics_list = [DataDriftPreset(columns=features_for_data_drift)]
@@ -140,24 +138,16 @@ def generate_drift_report(df_current, df_reference, feature_columns, output_path
     # Extraer resultados usando as_dict()
     try:
         report_dict = report.as_dict()
-        print("Reporte convertido a dict. Extrayendo métricas...") # Log
 
-        # Buscar resultados de DataDriftPreset
         data_drift_results_dict = None
         for metric_output in report_dict.get('metrics', []):
             if metric_output.get('metric') == 'DataDriftPreset':
                 data_drift_results_dict = metric_output.get('result', {})
-                break 
+                break
 
         if data_drift_results_dict is None:
-             print("Advertencia: No se encontraron resultados para DataDriftPreset en report.as_dict().")
-             # Devolver valores por defecto indicando que no se detectó/corrió
-             results = {
-                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                 "data_drift_detected": False,
-                 "drifted_features_count": 0,
-                 "drifted_features_list": []
-             }
+             print("Advertencia: No se encontraron resultados para DataDriftPreset.")
+             results = { "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(), "data_drift_detected": False, "drifted_features_count": 0, "drifted_features_list": [] }
              return results
 
         drifted_list = data_drift_results_dict.get('drifted_columns', []) or []
@@ -168,13 +158,13 @@ def generate_drift_report(df_current, df_reference, feature_columns, output_path
             "drifted_features_count": data_drift_results_dict.get('number_of_drifted_columns', 0),
             "drifted_features_list": drifted_list
         }
-        print(f"Resultados extraídos: {results}") # Log
         return results
     except Exception as e:
         print(f"Error al extraer resultados usando as_dict(): {e}")
         return None
 
 
+# --- Bloque principal ---
 if __name__ == "__main__":
     print("--- Iniciando Script de Monitoreo de Drift ---")
 
@@ -193,15 +183,22 @@ if __name__ == "__main__":
 
     if not df_recent.empty and not df_hist.empty:
         target_col_lower = TARGET_COLUMN_NAME.lower() # Sigue siendo útil para la carga de df_hist
+        prediction_col_lower = PREDICTION_COLUMN_NAME.lower() # Sigue siendo útil para quitarla de features
 
-        # Quitar la columna target ('exited') si existe, ya que no la usa DataDriftPreset
-        if target_col_lower in df_recent.columns:
-            df_recent = df_recent.drop(columns=[target_col_lower], errors='ignore')
+        # Quitar la columna target ('exited') si existe en df_hist
         if target_col_lower in df_hist.columns:
             df_hist = df_hist.drop(columns=[target_col_lower], errors='ignore')
 
+        # Quitar la columna prediction ('prediction') si existe en df_recent
+        if prediction_col_lower in df_recent.columns:
+             df_recent_for_report = df_recent.drop(columns=[prediction_col_lower], errors='ignore')
+        else:
+             df_recent_for_report = df_recent
+
         drift_results = generate_drift_report(
-            df_recent, df_hist, FEATURE_COLUMNS_TO_MONITOR,
+            df_recent_for_report, # Usar df sin prediction si existe
+            df_hist, # df_hist sin exited
+            FEATURE_COLUMNS_TO_MONITOR,
             OUTPUT_REPORT_PATH
         )
 
