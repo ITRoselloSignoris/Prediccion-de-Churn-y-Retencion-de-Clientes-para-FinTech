@@ -278,11 +278,11 @@ with tab2:
         with col1:
             if 'age' in df_kpis.columns:
                 st.subheader("Edad")
-                fig = px.histogram(df_kpis['age'].dropna(), netbins=30)
+                fig = px.histogram(df_kpis['age'].dropna(), nbins=30)
                 st.plotly_chart(fig, width="stretch")
             if 'creditscore' in df_kpis.columns:
                 st.subheader("Credit Score")
-                fig = px.histogram(df_kpis['creditscore'].dropna(), netbins=30)
+                fig = px.histogram(df_kpis['creditscore'].dropna(), nbins=30)
                 st.plotly_chart(fig, width="stretch")
             if 'geography' in df_kpis.columns:
                  st.subheader("País")
@@ -296,11 +296,11 @@ with tab2:
         with col2:
             if 'balance' in df_kpis.columns:
                  st.subheader("Saldo")
-                 fig = px.histogram(df_kpis['balance'].dropna(), netbins=30)
+                 fig = px.histogram(df_kpis['balance'].dropna(), nbins=30)
                  st.plotly_chart(fig, width="stretch")
             if 'estimatedsalary' in df_kpis.columns:
                  st.subheader("Salario Estimado")
-                 fig = px.histogram(df_kpis['estimatedsalary'].dropna(), netbins=30)
+                 fig = px.histogram(df_kpis['estimatedsalary'].dropna(), nbins=30)
                  st.plotly_chart(fig, width="stretch")
             if 'tenure' in df_kpis.columns:
                  st.subheader("Antigüedad")
