@@ -11,7 +11,8 @@ DB_CONNECTION_STRING = os.environ.get("SUPABASE_CONNECTION_STRING")
 HISTORICAL_DATA_PATH = "deployment/data/historical_data.csv"
 OUTPUT_REPORT_PATH = "public/drift_report.html"
 OUTPUT_STATUS_PATH = "public/drift_status.json"
-NUM_RECENT_PREDICTIONS = 5000
+NUM_RECENT_PREDICTIONS = 19  # Para demo, usar pocas filas
+DEMO_MODE = True  # Activa una ligera modificación artificial para mostrar drift
 
 FEATURE_COLUMNS_TO_MONITOR = [
     'creditscore', 'age', 'tenure', 'balance',
@@ -110,7 +111,7 @@ def generate_drift_report(df_current, df_reference, feature_columns, prediction_
         return None
 
     # Solo DataDriftPreset
-    report = Report(metrics=[DataDriftPreset(columns=features_for_data_drift)])
+    report = Report(metrics=[DataDriftPreset(columns=features_for_data_drift, drift_share_threshold=0.8)])
     report.run(current_data=df_current, reference_data=df_reference, column_mapping=column_mapping)
 
     # Guardar HTML
@@ -157,6 +158,12 @@ if __name__ == "__main__":
 
     if not df_recent.empty and not df_hist.empty:
         prediction_col_lower = PREDICTION_COLUMN_NAME.lower()
+
+        # 🧪 Modo demo: simular pequeño drift
+        if DEMO_MODE:
+            df_hist = df_hist.sample(n=min(len(df_recent), len(df_hist)), random_state=42)
+            df_recent['balance'] = df_recent['balance'] * 1.2
+            df_recent['age'] = df_recent['age'] + 3
 
         if prediction_col_lower not in df_recent.columns:
             print(f"Error: Columna '{prediction_col_lower}' no encontrada en datos recientes.")
