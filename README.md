@@ -1,13 +1,3 @@
----
-title: Churn Prediction API # Or any title you like
-emoji: 🚀 # Optional emoji
-colorFrom: blue # Optional color
-colorTo: green # Optional color
-sdk: docker
-app_port: 7860 # IMPORTANT: Match the port in your Dockerfile/uvicorn command
-pinned: false
----
-
 # 🚀 Customer Churn Prediction and Retention for FinTech
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
@@ -505,5 +495,6 @@ This project demonstrates the complete implementation of an ML system in product
 ---
 
 ⭐️ If you found this project useful, don't forget to give it a star on GitHub!
+
 
 **Project Status:** ✅ Active and in production
